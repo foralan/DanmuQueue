@@ -7,9 +7,9 @@ DEFAULT_CSS = r"""
 
 :root {
   --bg: rgba(0, 0, 0, 0);
-  --fg: rgba(255, 255, 255, 0.95);
-  --border: rgba(255, 255, 255, 0.35);
-  --muted: rgba(255, 255, 255, 0.6);
+  --fg: rgba(0, 0, 0, 0.92);
+  --border: rgba(0, 0, 0, 0.22);
+  --muted: rgba(0, 0, 0, 0.55);
 
   --font-size: 28px;
   --line-height: 1.25;
@@ -42,8 +42,16 @@ a { color: inherit; text-decoration: none; }
 
 .title {
   font-weight: 700;
-  margin-bottom: 12px;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  margin-bottom: 10px;
+  text-shadow: 0 2px 8px rgba(255,255,255,0.35);
+}
+
+.sectionTitle {
+  margin: 10px 0 8px;
+  font-weight: 800;
+  font-size: 0.9em;
+  opacity: 0.95;
+  text-shadow: 0 2px 8px rgba(255,255,255,0.30);
 }
 
 .queue {
@@ -56,7 +64,7 @@ a { color: inherit; text-decoration: none; }
   border: var(--item-border-width) solid var(--border);
   border-radius: var(--item-radius);
   padding: var(--item-padding-y) var(--item-padding-x);
-  background: rgba(0,0,0,0.08);
+  background: transparent;
   box-shadow: var(--shadow);
   display: flex;
   align-items: baseline;
@@ -83,12 +91,17 @@ a { color: inherit; text-decoration: none; }
 }
 
 .marked {
-  border-color: rgba(255, 210, 64, 0.85);
-  background: rgba(255, 210, 64, 0.12);
+  border-color: rgba(255, 120, 0, 0.55);
+  background: transparent;
 }
 
 .full {
   color: var(--muted);
+  border-style: dashed;
+}
+
+.empty {
+  opacity: 0.55;
   border-style: dashed;
 }
 

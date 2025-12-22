@@ -16,6 +16,8 @@ dependencies = [
 danmu-queue = "app.run:main"
 
 [tool.uv]
-dev-dependencies = []
+dev-dependencies = [
+    "pyinstaller>=6.17.0",
+]
 
 

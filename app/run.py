@@ -13,6 +13,7 @@ import uvicorn
 
 from .bootstrap import ensure_first_run_files
 from .config import CONFIG_PATH, load_config
+from .paths import project_root as get_project_root
 from .server import build_app
 
 
@@ -26,7 +27,11 @@ def _open_admin_later(url: str) -> None:
 
 
 def main() -> None:
-    asyncio.run(_main_async())
+    try:
+        asyncio.run(_main_async())
+    except KeyboardInterrupt:
+        # Quiet exit on Ctrl+C (avoid noisy asyncio CancelledError tracebacks)
+        return
 
 
 def _pid_is_alive(pid: int) -> bool:
@@ -85,7 +90,7 @@ def _wait_port_free(host: str, port: int, *, timeout_s: float = 5.0) -> None:
 
 
 async def _main_async() -> None:
-    project_root = Path.cwd()
+    project_root = get_project_root()
     ensure_first_run_files(project_root)
     _acquire_single_instance_lock(project_root)
 
@@ -93,8 +98,9 @@ async def _main_async() -> None:
     while True:
         cfg = load_config(project_root / CONFIG_PATH)
         restart_event = asyncio.Event()
+        exit_event = asyncio.Event()
         _wait_port_free(cfg.server.host, cfg.server.port, timeout_s=4.0)
-        app = build_app(project_root, restart_event=restart_event)
+        app = build_app(project_root, restart_event=restart_event, exit_event=exit_event)
 
         admin_url = f"http://{cfg.server.host}:{cfg.server.port}/admin"
         if first_open:
@@ -117,15 +123,37 @@ async def _main_async() -> None:
 
         serve_task = asyncio.create_task(_serve_wrapper())
         restart_task = asyncio.create_task(restart_event.wait())
+        exit_task = asyncio.create_task(exit_event.wait())
 
-        done, pending = await asyncio.wait(
-            {serve_task, restart_task},
-            return_when=asyncio.FIRST_COMPLETED,
-        )
+        try:
+            done, pending = await asyncio.wait(
+                {serve_task, restart_task, exit_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+        except asyncio.CancelledError:
+            # Ctrl+C will cancel the main task under asyncio.run(). Shut down uvicorn quietly.
+            server.should_exit = True
+            restart_task.cancel()
+            exit_task.cancel()
+            try:
+                await serve_task
+            except Exception:
+                pass
+            return
+
+        if exit_task in done:
+            # Exit requested from admin UI.
+            server.should_exit = True
+            # Do NOT cancel serve_task, let uvicorn shutdown gracefully.
+            await serve_task
+            for t in pending:
+                t.cancel()
+            break
 
         if serve_task in done and restart_task not in done:
             # Server exited normally (Ctrl+C etc.) OR failed to bind.
             restart_task.cancel()
+            exit_task.cancel()
             res = serve_task.result()
             if isinstance(res, SystemExit) and (res.code or 0) == 1:
                 # Bind failed; tell user and keep looping so they can fix port and retry.
@@ -142,6 +170,7 @@ async def _main_async() -> None:
         # Do NOT cancel serve_task, let uvicorn shutdown gracefully.
         await serve_task
         restart_task.cancel()
+        exit_task.cancel()
         # small delay to release socket cleanly
         await asyncio.sleep(0.25)
 

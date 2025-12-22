@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from .assets import DEFAULT_CSS
 from .bootstrap import ensure_first_run_files
@@ -33,23 +33,25 @@ from .models import (
     RuntimeTestEnableIn,
     TestDanmakuIn,
 )
+from .paths import static_dir as get_static_dir
 
 
-def build_app(project_root: Path, *, restart_event: asyncio.Event | None = None) -> FastAPI:
+def build_app(
+    project_root: Path, *, restart_event: asyncio.Event | None = None, exit_event: asyncio.Event | None = None
+) -> FastAPI:
     ensure_first_run_files(project_root)
     app = FastAPI()
     ctx = AppContext(project_root)
     app.state.ctx = ctx
     app.state.restart_event = restart_event
+    app.state.exit_event = exit_event
 
-    static_dir = project_root / "static"
+    static_dir = get_static_dir(project_root)
 
     @app.on_event("startup")
     async def _startup() -> None:
         await ctx.start_background_tasks()
-        # Auto-start after a process restart if requested.
-        if getattr(ctx.cfg, "runtime", None) and bool(ctx.cfg.runtime.autostart):
-            await ctx.start_runtime()
+        # Always start in stopped state (no auto-start).
 
     @app.on_event("shutdown")
     async def _shutdown() -> None:
@@ -73,18 +75,26 @@ def build_app(project_root: Path, *, restart_event: asyncio.Event | None = None)
     async def test_page() -> Any:
         return _page("test.html")
 
-    @app.get("/static/default.css", response_class=PlainTextResponse)
-    async def default_css() -> str:
-        return DEFAULT_CSS
+    @app.get("/static/default.css")
+    async def default_css() -> Response:
+        return Response(
+            content=DEFAULT_CSS,
+            media_type="text/css; charset=utf-8",
+            headers={"Cache-Control": "no-store"},
+        )
 
-    @app.get("/static/custom.css", response_class=PlainTextResponse)
-    async def custom_css() -> str:
+    @app.get("/static/custom.css")
+    async def custom_css() -> Response:
         css_path = Path(ctx.cfg.style.custom_css_path).expanduser()
         if not css_path.is_absolute():
             css_path = project_root / css_path
         if not css_path.exists():
-            return ""
-        return css_path.read_text(encoding="utf-8")
+            return Response(content="", media_type="text/css; charset=utf-8", headers={"Cache-Control": "no-store"})
+        return Response(
+            content=css_path.read_text(encoding="utf-8"),
+            media_type="text/css; charset=utf-8",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/api/state")
     async def api_state() -> dict[str, Any]:
@@ -101,6 +111,16 @@ def build_app(project_root: Path, *, restart_event: asyncio.Event | None = None)
     async def api_runtime_stop() -> dict[str, Any]:
         await ctx.stop_runtime()
         return ctx.state_payload()
+
+    @app.post("/api/runtime/exit")
+    async def api_runtime_exit() -> dict[str, Any]:
+        # Best-effort graceful shutdown:
+        # - stop runtime/danmaku
+        # - tell supervisor loop to terminate uvicorn + exit process
+        await ctx.stop_runtime()
+        if app.state.exit_event is not None:
+            app.state.exit_event.set()
+        return {"ok": True}
 
     @app.post("/api/runtime/test_enable")
     async def api_runtime_test_enable(body: RuntimeTestEnableIn) -> dict[str, Any]:
@@ -132,18 +152,40 @@ def build_app(project_root: Path, *, restart_event: asyncio.Event | None = None)
         if body.overlay_title is not None:
             ui = UiConfig(
                 overlay_title=body.overlay_title,
+                current_title=ui.current_title,
+                queue_title=ui.queue_title,
+                marked_color=ui.marked_color,
+                overlay_show_mark=ui.overlay_show_mark,
+            )
+        if body.current_title is not None:
+            ui = UiConfig(
+                overlay_title=ui.overlay_title,
+                current_title=body.current_title,
+                queue_title=ui.queue_title,
+                marked_color=ui.marked_color,
+                overlay_show_mark=ui.overlay_show_mark,
+            )
+        if body.queue_title is not None:
+            ui = UiConfig(
+                overlay_title=ui.overlay_title,
+                current_title=ui.current_title,
+                queue_title=body.queue_title,
                 marked_color=ui.marked_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
         if body.marked_color is not None:
             ui = UiConfig(
                 overlay_title=ui.overlay_title,
+                current_title=ui.current_title,
+                queue_title=ui.queue_title,
                 marked_color=body.marked_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
         if body.overlay_show_mark is not None:
             ui = UiConfig(
                 overlay_title=ui.overlay_title,
+                current_title=ui.current_title,
+                queue_title=ui.queue_title,
                 marked_color=ui.marked_color,
                 overlay_show_mark=bool(body.overlay_show_mark),
             )
@@ -189,10 +231,10 @@ def build_app(project_root: Path, *, restart_event: asyncio.Event | None = None)
 
         bili = BiliConfig(open_live=ol, web=wb)
 
-        # Preserve running status across restart.
+        # Always restart into stopped state.
         runtime = RuntimeConfig(
             test_enabled=bool(ctx.runtime.test_enabled),
-            autostart=(ctx.runtime.status == "running"),
+            autostart=False,
         )
 
         new_cfg = AppConfig(server=server, queue=queue, ui=ui, style=style, runtime=runtime, bilibili=bili)

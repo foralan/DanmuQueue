@@ -24,7 +24,9 @@ class QueueConfig:
 
 @dataclass(frozen=True)
 class UiConfig:
-    overlay_title: str = "排队队列"
+    overlay_title: str = "排队"
+    current_title: str = "当前"
+    queue_title: str = "队列"
     marked_color: str = "#ff5a5a"
     overlay_show_mark: bool = True
 
@@ -140,6 +142,8 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
         ),
         ui=UiConfig(
             overlay_title=str(ui.get("overlay_title", DEFAULT_CONFIG.ui.overlay_title)),
+            current_title=str(ui.get("current_title", DEFAULT_CONFIG.ui.current_title)),
+            queue_title=str(ui.get("queue_title", DEFAULT_CONFIG.ui.queue_title)),
             marked_color=str(ui.get("marked_color", DEFAULT_CONFIG.ui.marked_color)),
             overlay_show_mark=bool(ui.get("overlay_show_mark", DEFAULT_CONFIG.ui.overlay_show_mark)),
         ),
@@ -171,6 +175,8 @@ def _to_dict(cfg: AppConfig) -> dict[str, Any]:
         "queue": {"keyword": cfg.queue.keyword, "max_queue": cfg.queue.max_queue},
         "ui": {
             "overlay_title": cfg.ui.overlay_title,
+            "current_title": cfg.ui.current_title,
+            "queue_title": cfg.ui.queue_title,
             "marked_color": cfg.ui.marked_color,
             "overlay_show_mark": cfg.ui.overlay_show_mark,
         },

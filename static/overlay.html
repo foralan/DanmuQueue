@@ -9,7 +9,10 @@
 </head>
 <body>
   <div class="container">
-    <div class="title" id="title">排队队列</div>
+    <div class="title" id="title">排队</div>
+    <div class="sectionTitle" id="currentTitle">当前</div>
+    <div class="queue" id="current"></div>
+    <div class="sectionTitle" id="queueTitle">队列</div>
     <div class="queue" id="queue"></div>
     <div class="hint" id="hint"></div>
   </div>
@@ -18,14 +21,18 @@
     const $ = (id) => document.getElementById(id);
 
     function render(s) {
-      $("title").textContent = s.config?.ui?.overlay_title ?? "排队队列";
+      $("title").textContent = s.config?.ui?.overlay_title ?? "排队";
+      $("currentTitle").textContent = s.config?.ui?.current_title ?? "当前";
+      $("queueTitle").textContent = s.config?.ui?.queue_title ?? "队列";
       const showMark = !!s.config?.ui?.overlay_show_mark;
 
       const q = s.queue ?? { items: [], max_queue: 0, total: 0, is_full: false };
       const items = q.items ?? [];
 
-      const root = $("queue");
-      root.innerHTML = "";
+      const curRoot = $("current");
+      const queueRoot = $("queue");
+      curRoot.innerHTML = "";
+      queueRoot.innerHTML = "";
 
       if (s.runtime?.status !== "running") {
         $("hint").textContent = "未启动：请打开 /admin 点击“启动”。";
@@ -34,7 +41,43 @@
 
       $("hint").textContent = "";
 
-      items.forEach((it, idx) => {
+      // Current: index 0 (always render a row)
+      {
+        const it = items[0] ?? null;
+        const div = document.createElement("div");
+        const isMarked = !!(it && it.marked) && showMark;
+        div.className = "item" + (isMarked ? " marked" : "") + (!it ? " empty" : "");
+        // Hard guarantee: keep index/username/mark on the same row even if CSS is missing/overridden.
+        div.style.display = "flex";
+        div.style.alignItems = "center";
+        div.style.gap = "12px";
+        div.style.flexWrap = "nowrap";
+
+        const index = document.createElement("span");
+        index.className = "index";
+        index.textContent = "0";
+
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = it ? (it.uname ?? it.user_key ?? "-") : "（空）";
+
+        div.appendChild(index);
+        div.appendChild(name);
+
+        // Mark is optional via config.
+        if (isMarked) {
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          badge.textContent = "标记";
+          div.appendChild(badge);
+        }
+
+        curRoot.appendChild(div);
+      }
+
+      // Queue: index 1..n
+      items.slice(1).forEach((it, idx0) => {
+        const idx = idx0 + 1;
         const div = document.createElement("div");
         const isMarked = !!it.marked && showMark;
         div.className = "item" + (isMarked ? " marked" : "");
@@ -63,7 +106,7 @@
           div.appendChild(badge);
         }
 
-        root.appendChild(div);
+        queueRoot.appendChild(div);
       });
 
       if (q.is_full) {
@@ -77,7 +120,7 @@
         text.textContent = "排队已满";
         full.appendChild(index);
         full.appendChild(text);
-        root.appendChild(full);
+        queueRoot.appendChild(full);
       }
     }
 

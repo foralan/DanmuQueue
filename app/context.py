@@ -170,6 +170,8 @@ class AppContext:
                 "queue": {"keyword": self.cfg.queue.keyword, "max_queue": max_q},
                 "ui": {
                     "overlay_title": self.cfg.ui.overlay_title,
+                    "current_title": self.cfg.ui.current_title,
+                    "queue_title": self.cfg.ui.queue_title,
                     "marked_color": self.cfg.ui.marked_color,
                     "overlay_show_mark": self.cfg.ui.overlay_show_mark,
                 },

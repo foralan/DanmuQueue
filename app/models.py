@@ -37,6 +37,8 @@ class ConfigUpdateIn(BaseModel):
 
     # ui
     overlay_title: str | None = None
+    current_title: str | None = None
+    queue_title: str | None = None
     marked_color: str | None = None
     overlay_show_mark: bool | None = None
 

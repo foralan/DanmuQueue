@@ -15,6 +15,7 @@
     .field { min-width: 220px; flex: 1; }
     button { padding: 8px 12px; border-radius: 10px; border:1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); color:#e8eef6; cursor:pointer; }
     button:disabled { opacity:.5; cursor:not-allowed; }
+    .btnDanger { border-color: rgba(255, 90, 90, .55); color: rgba(255, 180, 180, 0.95); background: rgba(255, 90, 90, .12); }
     .muted { opacity: .75; }
     table { width:100%; border-collapse: collapse; font-size: 14px; }
     th, td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,.08); vertical-align: middle; }
@@ -61,6 +62,7 @@
     <div class="row">
       <button id="btnStart">启动</button>
       <button id="btnStop">停止</button>
+      <button id="btnExit" class="btnDanger">退出</button>
       <label class="checkLabel">
         <input id="chkTest" type="checkbox" />
         启用测试弹幕
@@ -94,7 +96,15 @@
           </div>
           <div class="kvRow">
             <div class="kvLabel">展示标题（overlay_title）</div>
-            <div class="kvValue"><input id="cfgTitle" placeholder="排队队列" /></div>
+            <div class="kvValue"><input id="cfgTitle" placeholder="排队" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">当前用户标题（current_title）</div>
+            <div class="kvValue"><input id="cfgCurrentTitle" placeholder="当前" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">队列用户标题（queue_title）</div>
+            <div class="kvValue"><input id="cfgQueueTitle" placeholder="队列" /></div>
           </div>
           <div class="kvRow">
             <div class="kvLabel">排队关键词（keyword）</div>
@@ -312,6 +322,8 @@
       $("cfgPort").value = s.config.server.port ?? 10000;
 
       $("cfgTitle").value = s.config.ui.overlay_title ?? "";
+      $("cfgCurrentTitle").value = s.config.ui.current_title ?? "";
+      $("cfgQueueTitle").value = s.config.ui.queue_title ?? "";
       $("cfgMarkedColor").value = s.config.ui.marked_color ?? "#ff5a5a";
       $("cfgOverlayShowMark").checked = !!s.config.ui.overlay_show_mark;
       $("cfgKeyword").value = s.config.queue.keyword ?? "";
@@ -342,6 +354,15 @@
     $("btnStop").onclick = async () => {
       try { await api("/api/runtime/stop"); } catch (e) { alert(String(e)); }
     };
+    $("btnExit").onclick = async () => {
+      if (!confirm("确定要退出排队姬吗？这会直接关闭本程序。")) return;
+      try {
+        await api("/api/runtime/exit");
+        alert("已退出。你可以关闭此页面。");
+      } catch (e) {
+        alert(String(e));
+      }
+    };
     $("chkTest").onchange = async () => {
       try { await api("/api/runtime/test_enable", { enabled: $("chkTest").checked }); } catch (e) { alert(String(e)); }
     };
@@ -364,6 +385,8 @@
           host: hostVal,
           port: portVal,
           overlay_title: $("cfgTitle").value,
+          current_title: $("cfgCurrentTitle").value,
+          queue_title: $("cfgQueueTitle").value,
           marked_color: $("cfgMarkedColor").value,
           overlay_show_mark: $("cfgOverlayShowMark").checked,
           keyword: $("cfgKeyword").value,

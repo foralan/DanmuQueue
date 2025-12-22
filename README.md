@@ -46,7 +46,9 @@ python -m app.run
 - `server.port`: `10000`
 - `queue.keyword`: `排队`
 - `queue.max_queue`: `10`
-- `ui.overlay_title`: `排队队列`
+- `ui.overlay_title`: `排队`
+- `ui.current_title`: `当前`
+- `ui.queue_title`: `队列`
 - `style.custom_css_path`: `./custom.css`
 
 弹幕配置（二选一，**优先 open_live**）：
