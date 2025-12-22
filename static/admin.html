@@ -63,10 +63,6 @@
       <button id="btnStart">启动</button>
       <button id="btnStop">停止</button>
       <button id="btnExit" class="btnDanger">退出</button>
-      <label class="checkLabel">
-        <input id="chkTest" type="checkbox" />
-        启用测试弹幕
-      </label>
       <span class="pill" id="runtimePill">runtime: -</span>
       <span class="pill" id="danmakuPill">danmaku: -</span>
     </div>
@@ -129,6 +125,16 @@
               <label class="checkLabel">
                 <input id="cfgOverlayShowMark" type="checkbox" />
                 显示
+              </label>
+            </div>
+          </div>
+
+          <div class="kvRow">
+            <div class="kvLabel">启用测试弹幕（runtime.test_enabled）</div>
+            <div class="kvValue">
+              <label class="checkLabel">
+                <input id="chkTest" type="checkbox" />
+                启用
               </label>
             </div>
           </div>

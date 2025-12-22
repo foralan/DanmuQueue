@@ -28,7 +28,7 @@ class UiConfig:
     current_title: str = "当前"
     queue_title: str = "队列"
     marked_color: str = "#ff5a5a"
-    overlay_show_mark: bool = True
+    overlay_show_mark: bool = False
 
 
 @dataclass(frozen=True)
@@ -181,7 +181,6 @@ def _to_dict(cfg: AppConfig) -> dict[str, Any]:
             "overlay_show_mark": cfg.ui.overlay_show_mark,
         },
         "style": {"custom_css_path": cfg.style.custom_css_path},
-        "runtime": {"test_enabled": cfg.runtime.test_enabled, "autostart": cfg.runtime.autostart},
         "bilibili": {
             "open_live": {
                 "access_key": cfg.bilibili.open_live.access_key,
@@ -194,6 +193,7 @@ def _to_dict(cfg: AppConfig) -> dict[str, Any]:
                 "room_id": cfg.bilibili.web.room_id,
             },
         },
+        "runtime": {"test_enabled": cfg.runtime.test_enabled, "autostart": cfg.runtime.autostart},
     }
 
 
