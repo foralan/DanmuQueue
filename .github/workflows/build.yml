@@ -40,14 +40,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          uv run pyinstaller -n DanmuQueue -D -c -m app.run --clean --add-data "static;static"
+          uv run pyinstaller -n DanmuQueue -D -c --clean --add-data "static;static" app/run.py
           Copy-Item README.md -Destination "dist/DanmuQueue/README.md" -Force
 
       - name: Build (PyInstaller onedir, macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          uv run pyinstaller -n DanmuQueue -D -c -m app.run --clean --add-data "static:static"
+          uv run pyinstaller -n DanmuQueue -D -c --clean --add-data "static:static" app/run.py
           cp -f README.md "dist/DanmuQueue/README.md"
 
       - name: Archive (Windows)
