@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>排队姬 - 管理</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",Arial,sans-serif; margin: 0; padding: 16px; background:#0b0f14; color:#e8eef6; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .card { border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:12px; background: rgba(255,255,255,.04); margin-bottom:12px; }
+    label { font-size: 12px; opacity:.85; display:block; margin-bottom:4px; }
+    input { width: 100%; padding: 8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.25); color:#e8eef6; }
+    .field { min-width: 220px; flex: 1; }
+    button { padding: 8px 12px; border-radius: 10px; border:1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); color:#e8eef6; cursor:pointer; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .muted { opacity: .75; }
+    table { width:100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,.08); vertical-align: middle; }
+    th { text-align:left; font-size: 12px; opacity:.8; }
+    .pill { display:inline-block; padding: 3px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.18); font-size:12px; }
+    .danger { color: #ffb4b4; }
+    .pill--good { border-color: rgba(46, 204, 113, .45); color: rgba(191, 255, 220, 0.95); background: rgba(46, 204, 113, .10); }
+    .pill--warn { border-color: rgba(255, 210, 64, .45); color: rgba(255, 236, 178, 0.95); background: rgba(255, 210, 64, .10); }
+    .pill--bad  { border-color: rgba(255, 90, 90, .55); color: rgba(255, 180, 180, 0.95); background: rgba(255, 90, 90, .10); }
+    .markedUser { color: var(--marked-color, #ff5a5a); font-weight: 700; }
+    .links a { color:#9ad0ff; text-decoration:none; }
+    .links a:hover { text-decoration:underline; }
+
+    details.section { border:1px solid rgba(255,255,255,.10); border-radius:12px; background: rgba(255,255,255,.03); }
+    details.section + details.section { margin-top: 10px; }
+    details.section > summary { cursor:pointer; padding: 10px 12px; list-style: none; font-weight: 700; }
+    details.section > summary::-webkit-details-marker { display:none; }
+    .sectionBody { padding: 12px; border-top: 1px solid rgba(255,255,255,.08); }
+    .kvList { display:flex; flex-direction:column; gap:10px; }
+    .kvRow { display:flex; align-items:center; gap:12px; padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.18); }
+    .kvLabel { width: 260px; font-size: 12px; opacity: .85; }
+    .kvValue { flex: 1; min-width: 240px; }
+    .kvValue input { width: 100%; }
+
+    /* Bigger checkboxes for easier clicking */
+    input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      accent-color: rgba(255, 210, 64, 0.95);
+    }
+    .checkLabel {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>排队姬 - 管理</h1>
+
+  <div class="card">
+    <div class="row">
+      <button id="btnStart">启动</button>
+      <button id="btnStop">停止</button>
+      <label class="checkLabel">
+        <input id="chkTest" type="checkbox" />
+        启用测试弹幕
+      </label>
+      <span class="pill" id="runtimePill">runtime: -</span>
+      <span class="pill" id="danmakuPill">danmaku: -</span>
+    </div>
+    <div style="margin-top:10px" class="links">
+      <div><span class="muted">Overlay URL：</span><code id="overlayUrl">-</code> <button id="btnCopyOverlay">复制</button></div>
+      <div style="margin-top:6px">
+        <a id="linkOverlay" href="/overlay" target="_blank">打开 overlay</a>
+        <span class="muted"> | </span>
+        <a id="linkTest" href="/test" target="_blank">打开 test</a>
+      </div>
+      <div id="danmakuErr" class="danger" style="margin-top:6px; display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <details class="section" open>
+      <summary>配置</summary>
+      <div class="sectionBody">
+        <div class="kvList">
+          <div class="kvRow">
+            <div class="kvLabel">host</div>
+            <div class="kvValue"><input id="cfgHost" placeholder="127.0.0.1" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">port</div>
+            <div class="kvValue"><input id="cfgPort" type="number" min="1" step="1" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">展示标题（overlay_title）</div>
+            <div class="kvValue"><input id="cfgTitle" placeholder="排队队列" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">排队关键词（keyword）</div>
+            <div class="kvValue"><input id="cfgKeyword" placeholder="排队" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">最大队列（max_queue，含 0 号）</div>
+            <div class="kvValue"><input id="cfgMax" type="number" min="1" step="1" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">自定义 CSS 路径（custom_css_path）</div>
+            <div class="kvValue"><input id="cfgCssPath" placeholder="./custom.css" /></div>
+          </div>
+
+          <div class="kvRow">
+            <div class="kvLabel">标记用户字体颜色（marked_color）</div>
+            <div class="kvValue"><input id="cfgMarkedColor" placeholder="#ff5a5a" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">Overlay 显示标记（overlay_show_mark）</div>
+            <div class="kvValue">
+              <label class="checkLabel">
+                <input id="cfgOverlayShowMark" type="checkbox" />
+                显示
+              </label>
+            </div>
+          </div>
+
+          <div class="muted" style="padding: 2px 2px 0;">
+            提示：点击“保存配置”后会自动重启排队姬（包括 host/port）。
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <details class="section">
+      <summary>Web 端</summary>
+      <div class="sectionBody">
+        <div class="kvList">
+          <div class="kvRow">
+            <div class="kvLabel">SESSDATA</div>
+            <div class="kvValue"><input id="webSessdata" type="password" placeholder="" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">room_id</div>
+            <div class="kvValue"><input id="webRoomId" type="number" min="0" step="1" /></div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <details class="section">
+      <summary>开放平台</summary>
+      <div class="sectionBody">
+        <div class="kvList">
+          <div class="kvRow">
+            <div class="kvLabel">access_key</div>
+            <div class="kvValue"><input id="olAccessKey" placeholder="" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">access_secret</div>
+            <div class="kvValue"><input id="olAccessSecret" type="password" placeholder="" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">app_id</div>
+            <div class="kvValue"><input id="olAppId" type="number" min="0" step="1" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">identity_code（身份码）</div>
+            <div class="kvValue"><input id="olIdentityCode" placeholder="" /></div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <div class="row" style="margin-top: 10px; justify-content:flex-end;">
+      <button id="btnSaveCfg">保存配置</button>
+      <span id="saveCfgMsg" class="muted"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <div>
+        <span class="muted">当前人数：</span><span id="queueTotal">0</span>
+        <span class="muted"> / </span><span id="queueMax">0</span>
+        <span id="queueFull" class="pill" style="display:none; margin-left:8px;">排队已满</span>
+      </div>
+      <div class="muted">0 号 = 当前服务；置顶会移动到 1 号</div>
+    </div>
+    <div style="height:10px"></div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:70px;">序号</th>
+          <th>用户名</th>
+          <th style="width:260px;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="queueBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const state = { latest: null };
+    const SECRET_MASK = "********";
+
+    async function api(path, body) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body ?? {}),
+      });
+      if (!res.ok) {
+        let txt = await res.text();
+        throw new Error(txt);
+      }
+      return await res.json();
+    }
+
+    function renderRuntimeAndQueue(s) {
+      state.latest = s;
+
+      // runtime
+      $("runtimePill").textContent = `runtime: ${s.runtime.status}`;
+      $("danmakuPill").textContent = `danmaku: ${s.runtime.danmaku_status}`;
+      $("runtimePill").className = "pill";
+      $("danmakuPill").className = "pill";
+      if (s.runtime.status === "running") $("runtimePill").classList.add("pill--good");
+      else $("runtimePill").classList.add("pill--warn");
+      if (s.runtime.danmaku_status === "running") $("danmakuPill").classList.add("pill--good");
+      else if (s.runtime.danmaku_status === "error") $("danmakuPill").classList.add("pill--bad");
+      else $("danmakuPill").classList.add("pill--warn");
+      $("overlayUrl").textContent = s.runtime.overlay_url;
+      $("chkTest").checked = !!s.runtime.test_enabled;
+      $("btnStart").disabled = s.runtime.status === "running";
+      $("btnStop").disabled = s.runtime.status !== "running";
+      // Allow pre-selecting test mode before start; it only takes effect when running.
+      $("chkTest").disabled = false;
+
+      if (s.runtime.danmaku_error) {
+        $("danmakuErr").style.display = "block";
+        $("danmakuErr").textContent = s.runtime.danmaku_error;
+      } else {
+        $("danmakuErr").style.display = "none";
+        $("danmakuErr").textContent = "";
+      }
+
+      // queue
+      $("queueTotal").textContent = String(s.queue.total ?? 0);
+      $("queueMax").textContent = String(s.queue.max_queue ?? 0);
+      $("queueFull").style.display = s.queue.is_full ? "inline-block" : "none";
+
+      const body = $("queueBody");
+      body.innerHTML = "";
+      (s.queue.items ?? []).forEach((it, idx) => {
+        const tr = document.createElement("tr");
+        const tdIdx = document.createElement("td");
+        tdIdx.textContent = String(idx);
+
+        const tdName = document.createElement("td");
+        tdName.textContent = it.uname ?? it.user_key ?? "-";
+        // marked font color is configurable
+        document.documentElement.style.setProperty("--marked-color", $("cfgMarkedColor").value || "#ff5a5a");
+        if (it.marked) tdName.classList.add("markedUser");
+
+        const tdOps = document.createElement("td");
+        const btnRemove = document.createElement("button");
+        btnRemove.textContent = "移除";
+        btnRemove.onclick = async () => {
+          await api("/api/queue/remove", { user_key: it.user_key });
+        };
+
+        const btnPin = document.createElement("button");
+        btnPin.textContent = "置顶";
+        btnPin.disabled = idx === 0;
+        btnPin.onclick = async () => {
+          await api("/api/queue/pin_top", { user_key: it.user_key });
+        };
+
+        const chk = document.createElement("input");
+        chk.type = "checkbox";
+        chk.checked = !!it.marked;
+        chk.onchange = async () => {
+          await api("/api/queue/toggle_mark", { user_key: it.user_key, marked: chk.checked });
+        };
+
+        const lbl = document.createElement("label");
+        lbl.style.display = "inline-flex";
+        lbl.style.alignItems = "center";
+        lbl.style.gap = "10px";
+        lbl.style.marginLeft = "10px";
+        lbl.appendChild(chk);
+        const span = document.createElement("span");
+        span.textContent = "标记";
+        span.className = "muted";
+        lbl.appendChild(span);
+
+        tdOps.appendChild(btnRemove);
+        tdOps.appendChild(document.createTextNode(" "));
+        tdOps.appendChild(btnPin);
+        tdOps.appendChild(lbl);
+
+        tr.appendChild(tdIdx);
+        tr.appendChild(tdName);
+        tr.appendChild(tdOps);
+        body.appendChild(tr);
+      });
+    }
+
+    function fillConfigOnce(s) {
+      // Fill config inputs once on page load. After that, they are user-controlled.
+      $("cfgHost").value = s.config.server.host ?? "127.0.0.1";
+      $("cfgPort").value = s.config.server.port ?? 10000;
+
+      $("cfgTitle").value = s.config.ui.overlay_title ?? "";
+      $("cfgMarkedColor").value = s.config.ui.marked_color ?? "#ff5a5a";
+      $("cfgOverlayShowMark").checked = !!s.config.ui.overlay_show_mark;
+      $("cfgKeyword").value = s.config.queue.keyword ?? "";
+      $("cfgMax").value = s.config.queue.max_queue ?? 10;
+      $("cfgCssPath").value = s.config.style.custom_css_path ?? "./custom.css";
+
+      $("webSessdata").value = s.config.bilibili.web.sessdata ? SECRET_MASK : "";
+      $("webRoomId").value = s.config.bilibili.web.room_id ?? 0;
+
+      $("olAccessKey").value = s.config.bilibili.open_live.access_key ?? "";
+      $("olAccessSecret").value = s.config.bilibili.open_live.access_secret ? SECRET_MASK : "";
+      $("olAppId").value = s.config.bilibili.open_live.app_id ?? 0;
+      $("olIdentityCode").value = s.config.bilibili.open_live.identity_code ?? "";
+    }
+
+    function connectWs() {
+      const wsProto = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${wsProto}://${location.host}/ws`);
+      ws.onmessage = (e) => {
+        try { renderRuntimeAndQueue(JSON.parse(e.data)); } catch {}
+      };
+      ws.onclose = () => setTimeout(connectWs, 1000);
+    }
+
+    $("btnStart").onclick = async () => {
+      try { await api("/api/runtime/start"); } catch (e) { alert(String(e)); }
+    };
+    $("btnStop").onclick = async () => {
+      try { await api("/api/runtime/stop"); } catch (e) { alert(String(e)); }
+    };
+    $("chkTest").onchange = async () => {
+      try { await api("/api/runtime/test_enable", { enabled: $("chkTest").checked }); } catch (e) { alert(String(e)); }
+    };
+    $("btnCopyOverlay").onclick = async () => {
+      const url = $("overlayUrl").textContent;
+      try { await navigator.clipboard.writeText(url); } catch {}
+    };
+    $("btnSaveCfg").onclick = async () => {
+      $("saveCfgMsg").textContent = "保存中…";
+      try {
+        // Secrets: if the input is still the mask, do NOT overwrite server-side secret.
+        // If the input is empty, we treat it as "clear".
+        const olSecretVal = $("olAccessSecret").value;
+        const webSessVal = $("webSessdata").value;
+
+        const hostVal = $("cfgHost").value.trim();
+        const portVal = Number($("cfgPort").value);
+
+        const r = await api("/api/config", {
+          host: hostVal,
+          port: portVal,
+          overlay_title: $("cfgTitle").value,
+          marked_color: $("cfgMarkedColor").value,
+          overlay_show_mark: $("cfgOverlayShowMark").checked,
+          keyword: $("cfgKeyword").value,
+          max_queue: Number($("cfgMax").value),
+          custom_css_path: $("cfgCssPath").value,
+
+          open_live_access_key: $("olAccessKey").value,
+          ...(olSecretVal === SECRET_MASK ? {} : { open_live_access_secret: olSecretVal }),
+          open_live_app_id: Number($("olAppId").value),
+          open_live_identity_code: $("olIdentityCode").value,
+
+          ...(webSessVal === SECRET_MASK ? {} : { web_sessdata: webSessVal }),
+          web_room_id: Number($("webRoomId").value),
+        });
+        $("saveCfgMsg").textContent = "已保存，正在重启…";
+
+        // Redirect to new admin URL after restart (host/port might change)
+        const target = (r && r.admin_url) ? r.admin_url : `http://${hostVal}:${portVal}/admin`;
+        setTimeout(() => {
+          window.location.href = target;
+        }, 900);
+      } catch (e) {
+        $("saveCfgMsg").textContent = "";
+        alert(String(e));
+      }
+    };
+
+    (async () => {
+      const s = await (await fetch("/api/state")).json();
+      fillConfigOnce(s);
+      renderRuntimeAndQueue(s);
+      connectWs();
+      // Fallback polling (in case ws is unavailable)
+      setInterval(async () => {
+        try {
+          const s2 = await (await fetch("/api/state")).json();
+          renderRuntimeAndQueue(s2);
+        } catch {}
+      }, 2000);
+    })();
+  </script>
+</body>
+</html>
+
+

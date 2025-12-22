@@ -1,0 +1,21 @@
+[project]
+name = "danmu-queue"
+version = "0.1.0"
+description = "Local queue overlay with admin UI and bilibili danmaku integration"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "PyYAML>=6.0.1",
+  "blivedm @ git+https://github.com/xfgryujk/blivedm.git@dev",
+  "aiohttp>=3.9",
+]
+
+[project.scripts]
+danmu-queue = "app.run:main"
+
+[tool.uv]
+dev-dependencies = []
+
+

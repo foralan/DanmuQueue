@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>排队姬 - Overlay</title>
+  <link rel="stylesheet" href="/static/default.css" />
+  <link rel="stylesheet" href="/static/custom.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="title" id="title">排队队列</div>
+    <div class="queue" id="queue"></div>
+    <div class="hint" id="hint"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function render(s) {
+      $("title").textContent = s.config?.ui?.overlay_title ?? "排队队列";
+      const showMark = !!s.config?.ui?.overlay_show_mark;
+
+      const q = s.queue ?? { items: [], max_queue: 0, total: 0, is_full: false };
+      const items = q.items ?? [];
+
+      const root = $("queue");
+      root.innerHTML = "";
+
+      if (s.runtime?.status !== "running") {
+        $("hint").textContent = "未启动：请打开 /admin 点击“启动”。";
+        return;
+      }
+
+      $("hint").textContent = "";
+
+      items.forEach((it, idx) => {
+        const div = document.createElement("div");
+        const isMarked = !!it.marked && showMark;
+        div.className = "item" + (isMarked ? " marked" : "");
+        // Hard guarantee: keep index/username/mark on the same row even if CSS is missing/overridden.
+        div.style.display = "flex";
+        div.style.alignItems = "center";
+        div.style.gap = "12px";
+        div.style.flexWrap = "nowrap";
+
+        const index = document.createElement("span");
+        index.className = "index";
+        index.textContent = String(idx);
+
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = it.uname ?? it.user_key ?? "-";
+
+        div.appendChild(index);
+        div.appendChild(name);
+
+        // Mark is optional via config.
+        if (isMarked) {
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          badge.textContent = "标记";
+          div.appendChild(badge);
+        }
+
+        root.appendChild(div);
+      });
+
+      if (q.is_full) {
+        const full = document.createElement("div");
+        full.className = "item full";
+        const index = document.createElement("div");
+        index.className = "index";
+        index.textContent = "";
+        const text = document.createElement("div");
+        text.className = "name";
+        text.textContent = "排队已满";
+        full.appendChild(index);
+        full.appendChild(text);
+        root.appendChild(full);
+      }
+    }
+
+    function connectWs() {
+      const wsProto = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${wsProto}://${location.host}/ws`);
+      ws.onmessage = (e) => {
+        try { render(JSON.parse(e.data)); } catch {}
+      };
+      ws.onclose = () => setTimeout(connectWs, 1000);
+    }
+
+    (async () => {
+      const s = await (await fetch("/api/state")).json();
+      render(s);
+      connectWs();
+      // Fallback polling (in case ws is unavailable)
+      setInterval(async () => {
+        try {
+          const s2 = await (await fetch("/api/state")).json();
+          render(s2);
+        } catch {}
+      }, 2000);
+    })();
+  </script>
+</body>
+</html>
+
+

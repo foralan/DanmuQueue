@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>排队姬 - Test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",Arial,sans-serif; margin: 0; padding: 16px; background:#0b0f14; color:#e8eef6; }
+    .card { border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:12px; background: rgba(255,255,255,.04); margin-bottom:12px; }
+    label { font-size: 12px; opacity:.85; display:block; margin-bottom:4px; }
+    input, textarea { width: 100%; padding: 8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.25); color:#e8eef6; }
+    textarea { min-height: 86px; resize: vertical; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .field { min-width: 220px; flex: 1; }
+    button { padding: 8px 12px; border-radius: 10px; border:1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); color:#e8eef6; cursor:pointer; }
+    .muted { opacity:.75; }
+    .danger { color: #ffb4b4; }
+    code { opacity:.9; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <div>
+        <div style="font-weight:700;">测试弹幕注入</div>
+        <div class="muted">通过 HTTP 注入到后端，后端会按当前 keyword 真检测。</div>
+      </div>
+      <div>
+        <a href="/admin" style="color:#9ad0ff; text-decoration:none;">返回管理页</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="statusCard">
+    <div class="muted">状态：</div>
+    <div id="statusText">加载中…</div>
+    <div id="statusErr" class="danger" style="display:none; margin-top:6px;"></div>
+  </div>
+
+  <div class="card" id="formCard" style="display:none;">
+    <div class="row">
+      <div class="field">
+        <label>用户名</label>
+        <input id="uname" placeholder="测试用户" />
+      </div>
+      <div class="field">
+        <label>随机生成</label>
+        <div class="row">
+          <button id="btnRand">一键随机</button>
+          <label style="display:flex; align-items:center; gap:8px; margin:0;">
+            <input id="chkInclude" type="checkbox" style="width:auto;" checked />
+            生成内容包含关键词
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:10px"></div>
+
+    <div class="field">
+      <label>弹幕内容</label>
+      <textarea id="msg" placeholder="比如：排队"></textarea>
+    </div>
+
+    <div style="height:10px"></div>
+    <div class="row">
+      <button id="btnSend">发送</button>
+      <span class="muted">当前 keyword：<code id="kw">-</code></span>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let keyword = "";
+
+    function randInt(n) { return Math.floor(Math.random() * n); }
+    function randStr(len) {
+      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+      let s = "";
+      for (let i = 0; i < len; i++) s += chars[randInt(chars.length)];
+      return s;
+    }
+
+    function genRandom() {
+      const include = $("chkInclude").checked;
+      const uname = `user_${randStr(6)}`;
+      let msg = `hello_${randStr(8)}`;
+      if (include && keyword) {
+        msg = `${msg} ${keyword} ${randStr(4)}`;
+      }
+      $("uname").value = uname;
+      $("msg").value = msg;
+    }
+
+    async function refreshStatus() {
+      const s = await (await fetch("/api/state")).json();
+      keyword = s.config?.queue?.keyword ?? "";
+      $("kw").textContent = keyword || "-";
+
+      const running = s.runtime?.status === "running";
+      const enabled = !!s.runtime?.test_enabled;
+
+      if (!running) {
+        $("statusText").textContent = "未启动：请先去 /admin 点击“启动”。";
+        $("formCard").style.display = "none";
+        return;
+      }
+      if (!enabled) {
+        $("statusText").textContent = "测试未启用：请去 /admin 勾选“启用测试弹幕”。";
+        $("formCard").style.display = "none";
+        return;
+      }
+      $("statusText").textContent = "就绪：可以注入测试弹幕。";
+      $("formCard").style.display = "block";
+    }
+
+    async function send() {
+      const uname = $("uname").value.trim();
+      const msg = $("msg").value.trim();
+      const res = await fetch("/api/test/danmaku", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uname, msg }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return await res.json();
+    }
+
+    $("btnRand").onclick = genRandom;
+    $("btnSend").onclick = async () => {
+      try {
+        const r = await send();
+        // Show explicit feedback so it doesn't look like "didn't send".
+        let tip = "已发送";
+        if (r.reason === "no_match") tip = "已发送，但未命中关键词（不会入队）";
+        if (r.reason === "duplicate") tip = "已发送，但该用户已在队列中（去重）";
+        if (r.reason === "full") tip = "已发送，但队列已满（拒绝入队）";
+        $("statusErr").style.display = "block";
+        $("statusErr").className = "";
+        $("statusErr").textContent = tip;
+        setTimeout(() => { $("statusErr").style.display = "none"; }, 1200);
+      } catch (e) {
+        $("statusErr").style.display = "block";
+        $("statusErr").textContent = String(e);
+        setTimeout(() => { $("statusErr").style.display = "none"; }, 1500);
+      }
+    };
+
+    // Live updates
+    function connectWs() {
+      const wsProto = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${wsProto}://${location.host}/ws`);
+      ws.onmessage = () => refreshStatus();
+      ws.onclose = () => setTimeout(connectWs, 1000);
+    }
+
+    (async () => {
+      await refreshStatus();
+      genRandom();
+      connectWs();
+      // Fallback polling (in case ws is unavailable)
+      setInterval(refreshStatus, 2000);
+    })();
+  </script>
+</body>
+</html>
+
+
