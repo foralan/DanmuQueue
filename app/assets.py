@@ -68,12 +68,12 @@ a { color: inherit; text-decoration: none; }
   box-shadow: var(--shadow);
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: 4px;
 }
 
 .index {
   font-weight: 800;
-  min-width: 2.2em;
+  min-width: 1.0em;
   opacity: 0.95;
 }
 

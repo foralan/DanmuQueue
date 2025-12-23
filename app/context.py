@@ -62,8 +62,15 @@ class AppContext:
             if not keyword:
                 return False, "no_keyword"
 
-            if keyword not in ev.msg:
-                return False, "no_match"
+            msg = (ev.msg or "").strip()
+            mode = self.cfg.queue.match_mode
+            if mode == "exact":
+                if msg != keyword:
+                    return False, "no_match"
+            else:
+                # contains
+                if keyword not in msg:
+                    return False, "no_match"
 
             user_key = (ev.user_key or ev.uname).strip()
             if not user_key:
@@ -167,11 +174,16 @@ class AppContext:
             },
             "config": {
                 "server": {"host": self.cfg.server.host, "port": self.cfg.server.port},
-                "queue": {"keyword": self.cfg.queue.keyword, "max_queue": max_q},
+                "queue": {
+                    "keyword": self.cfg.queue.keyword,
+                    "max_queue": max_q,
+                    "match_mode": self.cfg.queue.match_mode,
+                },
                 "ui": {
                     "overlay_title": self.cfg.ui.overlay_title,
                     "current_title": self.cfg.ui.current_title,
                     "queue_title": self.cfg.ui.queue_title,
+                    "empty_text": self.cfg.ui.empty_text,
                     "marked_color": self.cfg.ui.marked_color,
                     "overlay_show_mark": self.cfg.ui.overlay_show_mark,
                 },

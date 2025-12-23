@@ -25,6 +25,7 @@
       $("currentTitle").textContent = s.config?.ui?.current_title ?? "当前";
       $("queueTitle").textContent = s.config?.ui?.queue_title ?? "队列";
       const showMark = !!s.config?.ui?.overlay_show_mark;
+      const emptyText = s.config?.ui?.empty_text ?? "当前无人排队";
 
       const q = s.queue ?? { items: [], max_queue: 0, total: 0, is_full: false };
       const items = q.items ?? [];
@@ -50,16 +51,17 @@
         // Hard guarantee: keep index/username/mark on the same row even if CSS is missing/overridden.
         div.style.display = "flex";
         div.style.alignItems = "center";
-        div.style.gap = "12px";
+        div.style.gap = "4px";
         div.style.flexWrap = "nowrap";
 
         const index = document.createElement("span");
         index.className = "index";
-        index.textContent = "0";
+        // Never show digit "0" (keep alignment with an empty placeholder).
+        index.textContent = "";
 
         const name = document.createElement("span");
         name.className = "name";
-        name.textContent = it ? (it.uname ?? it.user_key ?? "-") : "（空）";
+        name.textContent = it ? (it.uname ?? it.user_key ?? "-") : emptyText;
 
         div.appendChild(index);
         div.appendChild(name);
@@ -84,7 +86,7 @@
         // Hard guarantee: keep index/username/mark on the same row even if CSS is missing/overridden.
         div.style.display = "flex";
         div.style.alignItems = "center";
-        div.style.gap = "12px";
+        div.style.gap = "4px";
         div.style.flexWrap = "nowrap";
 
         const index = document.createElement("span");

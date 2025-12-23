@@ -145,15 +145,21 @@ def build_app(
             server = ServerConfig(host=server.host, port=int(body.port))
 
         if body.keyword is not None:
-            queue = QueueConfig(keyword=body.keyword, max_queue=queue.max_queue)
+            queue = QueueConfig(keyword=body.keyword, max_queue=queue.max_queue, match_mode=queue.match_mode)
         if body.max_queue is not None:
-            queue = QueueConfig(keyword=queue.keyword, max_queue=int(body.max_queue))
+            queue = QueueConfig(keyword=queue.keyword, max_queue=int(body.max_queue), match_mode=queue.match_mode)
+        if body.match_mode is not None:
+            mm = str(body.match_mode).strip().lower()
+            if mm not in ("exact", "contains"):
+                raise HTTPException(status_code=400, detail="queue.match_mode must be 'exact' or 'contains'")
+            queue = QueueConfig(keyword=queue.keyword, max_queue=queue.max_queue, match_mode=mm)
 
         if body.overlay_title is not None:
             ui = UiConfig(
                 overlay_title=body.overlay_title,
                 current_title=ui.current_title,
                 queue_title=ui.queue_title,
+                empty_text=ui.empty_text,
                 marked_color=ui.marked_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
@@ -162,6 +168,7 @@ def build_app(
                 overlay_title=ui.overlay_title,
                 current_title=body.current_title,
                 queue_title=ui.queue_title,
+                empty_text=ui.empty_text,
                 marked_color=ui.marked_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
@@ -170,6 +177,16 @@ def build_app(
                 overlay_title=ui.overlay_title,
                 current_title=ui.current_title,
                 queue_title=body.queue_title,
+                empty_text=ui.empty_text,
+                marked_color=ui.marked_color,
+                overlay_show_mark=ui.overlay_show_mark,
+            )
+        if body.empty_text is not None:
+            ui = UiConfig(
+                overlay_title=ui.overlay_title,
+                current_title=ui.current_title,
+                queue_title=ui.queue_title,
+                empty_text=str(body.empty_text),
                 marked_color=ui.marked_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
@@ -178,6 +195,7 @@ def build_app(
                 overlay_title=ui.overlay_title,
                 current_title=ui.current_title,
                 queue_title=ui.queue_title,
+                empty_text=ui.empty_text,
                 marked_color=body.marked_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
@@ -186,6 +204,7 @@ def build_app(
                 overlay_title=ui.overlay_title,
                 current_title=ui.current_title,
                 queue_title=ui.queue_title,
+                empty_text=ui.empty_text,
                 marked_color=ui.marked_color,
                 overlay_show_mark=bool(body.overlay_show_mark),
             )

@@ -99,12 +99,25 @@
             <div class="kvValue"><input id="cfgCurrentTitle" placeholder="当前" /></div>
           </div>
           <div class="kvRow">
+            <div class="kvLabel">无人排队提示词（empty_text）</div>
+            <div class="kvValue"><input id="cfgEmptyText" placeholder="当前无人排队" /></div>
+          </div>
+          <div class="kvRow">
             <div class="kvLabel">队列用户标题（queue_title）</div>
             <div class="kvValue"><input id="cfgQueueTitle" placeholder="队列" /></div>
           </div>
           <div class="kvRow">
             <div class="kvLabel">排队关键词（keyword）</div>
             <div class="kvValue"><input id="cfgKeyword" placeholder="排队" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">匹配模式（match_mode）</div>
+            <div class="kvValue">
+              <label class="checkLabel">
+                <input id="cfgMatchExact" type="checkbox" />
+                完全匹配（勾选=exact，不勾选=contains）
+              </label>
+            </div>
           </div>
           <div class="kvRow">
             <div class="kvLabel">最大队列（max_queue，含 0 号）</div>
@@ -329,10 +342,12 @@
 
       $("cfgTitle").value = s.config.ui.overlay_title ?? "";
       $("cfgCurrentTitle").value = s.config.ui.current_title ?? "";
+      $("cfgEmptyText").value = s.config.ui.empty_text ?? "当前无人排队";
       $("cfgQueueTitle").value = s.config.ui.queue_title ?? "";
       $("cfgMarkedColor").value = s.config.ui.marked_color ?? "#ff5a5a";
       $("cfgOverlayShowMark").checked = !!s.config.ui.overlay_show_mark;
       $("cfgKeyword").value = s.config.queue.keyword ?? "";
+      $("cfgMatchExact").checked = (s.config.queue.match_mode ?? "exact") === "exact";
       $("cfgMax").value = s.config.queue.max_queue ?? 10;
       $("cfgCssPath").value = s.config.style.custom_css_path ?? "./custom.css";
 
@@ -392,10 +407,12 @@
           port: portVal,
           overlay_title: $("cfgTitle").value,
           current_title: $("cfgCurrentTitle").value,
+          empty_text: $("cfgEmptyText").value,
           queue_title: $("cfgQueueTitle").value,
           marked_color: $("cfgMarkedColor").value,
           overlay_show_mark: $("cfgOverlayShowMark").checked,
           keyword: $("cfgKeyword").value,
+          match_mode: $("cfgMatchExact").checked ? "exact" : "contains",
           max_queue: Number($("cfgMax").value),
           custom_css_path: $("cfgCssPath").value,
 

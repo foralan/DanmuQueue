@@ -9,6 +9,7 @@ import yaml
 CONFIG_PATH = "config.yaml"
 CUSTOM_CSS_PATH = "custom.css"
 
+QueueMatchMode = Literal["exact", "contains"]
 
 @dataclass(frozen=True)
 class ServerConfig:
@@ -20,6 +21,7 @@ class ServerConfig:
 class QueueConfig:
     keyword: str = "排队"
     max_queue: int = 10  # total: current + waiting
+    match_mode: QueueMatchMode = "exact"
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,7 @@ class UiConfig:
     overlay_title: str = "排队"
     current_title: str = "当前"
     queue_title: str = "队列"
+    empty_text: str = "当前无人排队"
     marked_color: str = "#ff5a5a"
     overlay_show_mark: bool = False
 
@@ -131,6 +134,9 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
     open_live = bilibili.get("open_live") or {}
     web = bilibili.get("web") or {}
 
+    mm_raw = str(queue.get("match_mode", DEFAULT_CONFIG.queue.match_mode)).strip().lower()
+    match_mode: QueueMatchMode = "exact" if mm_raw not in ("exact", "contains") else mm_raw  # type: ignore[assignment]
+
     return AppConfig(
         server=ServerConfig(
             host=str(server.get("host", DEFAULT_CONFIG.server.host)),
@@ -139,11 +145,13 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
         queue=QueueConfig(
             keyword=str(queue.get("keyword", DEFAULT_CONFIG.queue.keyword)),
             max_queue=int(queue.get("max_queue", DEFAULT_CONFIG.queue.max_queue)),
+            match_mode=match_mode,
         ),
         ui=UiConfig(
             overlay_title=str(ui.get("overlay_title", DEFAULT_CONFIG.ui.overlay_title)),
             current_title=str(ui.get("current_title", DEFAULT_CONFIG.ui.current_title)),
             queue_title=str(ui.get("queue_title", DEFAULT_CONFIG.ui.queue_title)),
+            empty_text=str(ui.get("empty_text", DEFAULT_CONFIG.ui.empty_text)),
             marked_color=str(ui.get("marked_color", DEFAULT_CONFIG.ui.marked_color)),
             overlay_show_mark=bool(ui.get("overlay_show_mark", DEFAULT_CONFIG.ui.overlay_show_mark)),
         ),
@@ -172,11 +180,12 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
 def _to_dict(cfg: AppConfig) -> dict[str, Any]:
     return {
         "server": {"host": cfg.server.host, "port": cfg.server.port},
-        "queue": {"keyword": cfg.queue.keyword, "max_queue": cfg.queue.max_queue},
+        "queue": {"keyword": cfg.queue.keyword, "max_queue": cfg.queue.max_queue, "match_mode": cfg.queue.match_mode},
         "ui": {
             "overlay_title": cfg.ui.overlay_title,
             "current_title": cfg.ui.current_title,
             "queue_title": cfg.ui.queue_title,
+            "empty_text": cfg.ui.empty_text,
             "marked_color": cfg.ui.marked_color,
             "overlay_show_mark": cfg.ui.overlay_show_mark,
         },

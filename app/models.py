@@ -39,12 +39,14 @@ class ConfigUpdateIn(BaseModel):
     overlay_title: str | None = None
     current_title: str | None = None
     queue_title: str | None = None
+    empty_text: str | None = None
     marked_color: str | None = None
     overlay_show_mark: bool | None = None
 
     # queue
     keyword: str | None = None
     max_queue: int | None = None
+    match_mode: str | None = None
 
     # style
     custom_css_path: str | None = None
