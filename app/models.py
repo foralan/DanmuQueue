@@ -47,6 +47,9 @@ class ConfigUpdateIn(BaseModel):
     keyword: str | None = None
     max_queue: int | None = None
     match_mode: str | None = None
+    pause_message: str | None = None
+    auto_pause_time: str | None = None
+    pause_check_interval_seconds: int | None = None
 
     # style
     custom_css_path: str | None = None
@@ -64,5 +67,14 @@ class ConfigUpdateIn(BaseModel):
 
     # danmaku: mode
     bilibili_mode: str | None = None
+
+
+class QueuePauseIn(BaseModel):
+    paused: bool
+    reason: str | None = None
+
+
+class QueueAutoPauseIn(BaseModel):
+    time_str: str  # "HH:MM"
 
 

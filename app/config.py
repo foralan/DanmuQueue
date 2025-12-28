@@ -23,6 +23,9 @@ class QueueConfig:
     keyword: str = "排队"
     max_queue: int = 10  # total: current + waiting
     match_mode: QueueMatchMode = "exact"
+    pause_message: str = "当前暂停排队"
+    auto_pause_time: str = ""  # "HH:MM" local time, empty = disabled
+    pause_check_interval_seconds: int = 60  # scheduler tick
 
 
 @dataclass(frozen=True)
@@ -167,6 +170,11 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
             keyword=str(queue.get("keyword", DEFAULT_CONFIG.queue.keyword)),
             max_queue=int(queue.get("max_queue", DEFAULT_CONFIG.queue.max_queue)),
             match_mode=match_mode,
+            pause_message=str(queue.get("pause_message", DEFAULT_CONFIG.queue.pause_message)),
+            auto_pause_time=str(queue.get("auto_pause_time", DEFAULT_CONFIG.queue.auto_pause_time)),
+            pause_check_interval_seconds=int(
+                queue.get("pause_check_interval_seconds", DEFAULT_CONFIG.queue.pause_check_interval_seconds)
+            ),
         ),
         ui=UiConfig(
             overlay_title=str(ui.get("overlay_title", DEFAULT_CONFIG.ui.overlay_title)),
@@ -203,7 +211,14 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
 def _to_dict(cfg: AppConfig) -> dict[str, Any]:
     return {
         "server": {"host": cfg.server.host, "port": cfg.server.port},
-        "queue": {"keyword": cfg.queue.keyword, "max_queue": cfg.queue.max_queue, "match_mode": cfg.queue.match_mode},
+        "queue": {
+            "keyword": cfg.queue.keyword,
+            "max_queue": cfg.queue.max_queue,
+            "match_mode": cfg.queue.match_mode,
+            "pause_message": cfg.queue.pause_message,
+            "auto_pause_time": cfg.queue.auto_pause_time,
+            "pause_check_interval_seconds": cfg.queue.pause_check_interval_seconds,
+        },
         "ui": {
             "overlay_title": cfg.ui.overlay_title,
             "current_title": cfg.ui.current_title,

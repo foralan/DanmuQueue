@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import time
+from datetime import datetime, timedelta
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -25,6 +27,11 @@ class AppContext:
             test_enabled=bool(self.cfg.runtime.test_enabled),
             danmaku_status="idle",
             active_mode=None,
+            queue_paused=False,
+            queue_pause_reason=None,
+            queue_auto_pause_time=str(self.cfg.queue.auto_pause_time),
+            queue_pause_until_ts=None,
+            queue_pause_check_interval=int(self.cfg.queue.pause_check_interval_seconds or 60),
         )
 
         self.queue = QueueCore()
@@ -36,15 +43,20 @@ class AppContext:
 
         # danmaku worker task placeholder (implemented in danmaku-mode todo)
         self._danmaku_task: asyncio.Task[None] | None = None
+        self._pause_checker_task: asyncio.Task[None] | None = None
 
     async def start_background_tasks(self) -> None:
         if self._consumer_task is None or self._consumer_task.done():
             self._consumer_task = asyncio.create_task(self._consumer_loop())
+        if self._pause_checker_task is None or self._pause_checker_task.done():
+            self._pause_checker_task = asyncio.create_task(self._pause_checker_loop())
 
     async def shutdown(self) -> None:
         await self.stop_runtime()
         if self._consumer_task:
             self._consumer_task.cancel()
+        if self._pause_checker_task:
+            self._pause_checker_task.cancel()
 
     async def put_event(self, ev: DanmakuEvent) -> None:
         await self._event_q.put(ev)
@@ -60,6 +72,8 @@ class AppContext:
         async with self._lock:
             if self.runtime.status != "running":
                 return False, "not_running"
+            if self.runtime.queue_paused:
+                return False, "paused"
 
             keyword = (self.cfg.queue.keyword or "").strip()
             if not keyword:
@@ -101,6 +115,12 @@ class AppContext:
             self.runtime.active_mode = mode
             # Apply persisted toggle from config on start (user can pre-check before start).
             self.runtime.test_enabled = bool(self.cfg.runtime.test_enabled)
+            # Reset queue pause state on start
+            self.runtime.queue_paused = False
+            self.runtime.queue_pause_reason = None
+            self.runtime.queue_auto_pause_time = str(self.cfg.queue.auto_pause_time)
+            self.runtime.queue_pause_check_interval = int(self.cfg.queue.pause_check_interval_seconds or 60)
+            self._reset_auto_pause_timer_locked()
 
             await self._start_danmaku_locked(effective_cfg, mode)
 
@@ -115,6 +135,10 @@ class AppContext:
             self.runtime.danmaku_status = "idle"
             self.runtime.danmaku_error = None
             self.runtime.active_mode = None
+            self.runtime.queue_paused = False
+            self.runtime.queue_pause_reason = None
+            self.runtime.queue_pause_until_ts = None
+            self.runtime.queue_auto_pause_time = str(self.cfg.queue.auto_pause_time)
 
             if self._danmaku_task and not self._danmaku_task.done():
                 self._danmaku_task.cancel()
@@ -139,6 +163,9 @@ class AppContext:
             except Exception as e:
                 return False, str(e)
             self.cfg = new_cfg
+            # Keep runtime fields in sync with latest config defaults.
+            self.runtime.queue_pause_check_interval = int(self.cfg.queue.pause_check_interval_seconds or 60)
+            self.runtime.queue_auto_pause_time = str(self.cfg.queue.auto_pause_time)
 
             # If running, restart danmaku with new config.
             if self.runtime.status == "running":
@@ -172,6 +199,15 @@ class AppContext:
     def state_payload(self) -> dict[str, Any]:
         max_q = int(self.cfg.queue.max_queue)
         secret_mask = "********"
+        queue_state = self.queue.state.to_dict(max_q)
+        queue_state.update(
+            {
+                "paused": self.runtime.queue_paused,
+                "pause_reason": self.runtime.queue_pause_reason,
+                "pause_message": self.cfg.queue.pause_message,
+                "auto_pause_time": self.runtime.queue_auto_pause_time,
+            }
+        )
         return {
             "type": "state",
             "runtime": {
@@ -181,6 +217,10 @@ class AppContext:
                 "danmaku_status": self.runtime.danmaku_status,
                 "danmaku_error": self.runtime.danmaku_error,
                 "active_mode": self.runtime.active_mode,
+                "queue_paused": self.runtime.queue_paused,
+                "queue_pause_reason": self.runtime.queue_pause_reason,
+                "queue_auto_pause_time": self.runtime.queue_auto_pause_time,
+                "queue_pause_until_ts": self.runtime.queue_pause_until_ts,
             },
             "config": {
                 "server": {"host": self.cfg.server.host, "port": self.cfg.server.port},
@@ -188,6 +228,9 @@ class AppContext:
                     "keyword": self.cfg.queue.keyword,
                     "max_queue": max_q,
                     "match_mode": self.cfg.queue.match_mode,
+                    "pause_message": self.cfg.queue.pause_message,
+                    "auto_pause_time": self.cfg.queue.auto_pause_time,
+                    "pause_check_interval_seconds": self.cfg.queue.pause_check_interval_seconds,
                 },
                 "ui": {
                     "overlay_title": self.cfg.ui.overlay_title,
@@ -213,7 +256,7 @@ class AppContext:
                     },
                 },
             },
-            "queue": self.queue.state.to_dict(max_q),
+            "queue": queue_state,
         }
 
     async def _consumer_loop(self) -> None:
@@ -249,6 +292,76 @@ class AppContext:
 
         self._danmaku_task = asyncio.create_task(runner())
 
+    async def set_queue_paused(self, paused: bool, reason: str | None = None) -> tuple[bool, str | None]:
+        async with self._lock:
+            if paused:
+                self.runtime.queue_paused = True
+                self.runtime.queue_pause_reason = reason or "手动暂停"
+                self.runtime.queue_pause_until_ts = None
+            else:
+                self.runtime.queue_paused = False
+                self.runtime.queue_pause_reason = None
+                self._reset_auto_pause_timer_locked()
+        await self.broadcast_state()
+        return True, None
+
+    async def set_auto_pause_time(self, time_str: str) -> tuple[bool, str | None]:
+        time_str = (time_str or "").strip()
+        if time_str and not _is_valid_hhmm(time_str):
+            return False, "auto_pause_time must be HH:MM (00-23:00-59)"
+        async with self._lock:
+            self.runtime.queue_auto_pause_time = time_str
+            if self.runtime.queue_paused:
+                self.runtime.queue_pause_until_ts = None
+            else:
+                self._reset_auto_pause_timer_locked()
+        await self.broadcast_state()
+        return True, None
+
+    def _reset_auto_pause_timer_locked(self) -> None:
+        self.runtime.queue_pause_until_ts = _next_timestamp_for_time_str(self.runtime.queue_auto_pause_time)
+
+    def _maybe_auto_pause_locked(self) -> bool:
+        """
+        Returns True if state changed.
+        """
+        if self.runtime.status != "running":
+            return False
+        if self.runtime.queue_paused:
+            return False
+        if not self.runtime.queue_auto_pause_time:
+            return False
+        if self.runtime.queue_pause_until_ts is None:
+            self.runtime.queue_pause_until_ts = _next_timestamp_for_time_str(self.runtime.queue_auto_pause_time)
+            if self.runtime.queue_pause_until_ts is None:
+                return False
+
+        if time.time() >= self.runtime.queue_pause_until_ts:
+            self.runtime.queue_paused = True
+            self.runtime.queue_pause_reason = "自动暂停"
+            self.runtime.queue_pause_until_ts = None
+            return True
+        return False
+
+    async def _pause_checker_loop(self) -> None:
+        while True:
+            try:
+                interval = int(self.runtime.queue_pause_check_interval or self.cfg.queue.pause_check_interval_seconds or 60)
+                if interval <= 0:
+                    interval = 60
+                await asyncio.sleep(interval)
+                changed = False
+                async with self._lock:
+                    changed = self._maybe_auto_pause_locked()
+                if changed:
+                    await self.broadcast_state()
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                # swallow errors, keep loop alive
+                continue
+
+
     async def _prepare_runtime_config(self) -> tuple[AppConfig | None, DanmakuMode | None, str | None]:
         """
         Returns (effective_cfg, mode, error).
@@ -281,5 +394,27 @@ class AppContext:
 
     def fetch_browser_sessdata(self) -> tuple[str | None, str | None]:
         return fetch_sessdata_from_browser()
+
+
+def _is_valid_hhmm(s: str) -> bool:
+    if len(s) != 5 or s[2] != ":":
+        return False
+    hh, mm = s.split(":", 1)
+    if not (hh.isdigit() and mm.isdigit()):
+        return False
+    h = int(hh)
+    m = int(mm)
+    return 0 <= h <= 23 and 0 <= m <= 59
+
+
+def _next_timestamp_for_time_str(time_str: str) -> float | None:
+    if not time_str or not _is_valid_hhmm(time_str):
+        return None
+    hh, mm = map(int, time_str.split(":", 1))
+    now = datetime.now()
+    target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if target <= now:
+        target = target + timedelta(days=1)
+    return target.timestamp()
 
 

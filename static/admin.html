@@ -120,6 +120,18 @@
             </div>
           </div>
           <div class="kvRow">
+            <div class="kvLabel">暂停提示文案（pause_message）</div>
+            <div class="kvValue"><input id="cfgPauseMessage" placeholder="当前暂停排队" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">自动暂停时间（默认，HH:MM）</div>
+            <div class="kvValue"><input id="cfgAutoPauseTime" type="text" placeholder="18:30" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">暂停检查间隔（秒）</div>
+            <div class="kvValue"><input id="cfgPauseCheckInterval" type="number" min="1" step="1" /></div>
+          </div>
+          <div class="kvRow">
             <div class="kvLabel">弹幕模式</div>
             <div class="kvValue">
               <select id="biliMode" style="width: 100%; padding: 8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.25); color:#e8eef6;">
@@ -238,6 +250,23 @@
       <div class="muted">0 号 = 当前服务；置顶会移动到 1 号</div>
     </div>
     <div style="height:10px"></div>
+    <div class="row" style="gap:12px; align-items:flex-start;">
+      <div style="flex:1;">
+        <div class="muted">排队状态：<span id="queueStatusText">正常</span></div>
+        <div class="muted" id="queueStatusReason" style="font-size:12px; min-height:18px;"></div>
+      </div>
+      <div style="flex:1; min-width:220px;">
+        <button id="btnPauseQueue" class="btnDanger" style="width:100%;">暂停排队</button>
+      </div>
+    </div>
+    <div class="row" style="gap:12px; align-items:center; margin-top:8px;">
+      <div class="muted">自动暂停时间（HH:MM，当天或次日生效）</div>
+      <input id="tmpAutoPause" type="text" placeholder="18:30" style="width:120px;" />
+      <button id="btnApplyAutoPause">应用</button>
+      <span class="muted" id="tmpAutoPauseHint"></span>
+      <span class="pill" id="autoPauseStatus" style="margin-left:8px;"></span>
+    </div>
+    <div style="height:10px"></div>
     <table>
       <thead>
         <tr>
@@ -252,7 +281,7 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const state = { latest: null };
+    const state = { latest: null, tmpAutoPauseTouched: false };
     const SECRET_MASK = "********";
 
     async function api(path, body) {
@@ -288,6 +317,28 @@
       $("btnStop").disabled = s.runtime.status !== "running";
       // Allow pre-selecting test mode before start; it only takes effect when running.
       $("chkTest").disabled = false;
+      // queue pause state
+      const paused = !!s.runtime.queue_paused;
+      $("queueStatusText").textContent = paused ? "暂停排队" : "正常排队";
+      $("queueStatusReason").textContent = s.runtime.queue_pause_reason || "";
+      $("btnPauseQueue").textContent = paused ? "恢复排队" : "暂停排队";
+      $("btnPauseQueue").className = paused ? "btnDanger" : "";
+      if (!state.tmpAutoPauseTouched) {
+        $("tmpAutoPause").value = s.runtime.queue_auto_pause_time ?? "";
+      }
+      const cfgDefaultAuto = s.config?.queue?.auto_pause_time ?? "";
+      $("tmpAutoPauseHint").textContent = cfgDefaultAuto ? `(默认 ${cfgDefaultAuto})` : "(默认未设置)";
+      const nextTs = s.runtime.queue_pause_until_ts;
+      if (s.runtime.queue_auto_pause_time) {
+        $("autoPauseStatus").style.display = "inline-block";
+        const nextStr = nextTs ? new Date(nextTs * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "待计算";
+        $("autoPauseStatus").textContent = `自动暂停已设置（${s.runtime.queue_auto_pause_time}，下次约 ${nextStr}）`;
+        $("autoPauseStatus").className = "pill pill--warn";
+      } else {
+        $("autoPauseStatus").style.display = "inline-block";
+        $("autoPauseStatus").textContent = "自动暂停未设置";
+        $("autoPauseStatus").className = "pill";
+      }
 
       if (s.runtime.danmaku_error) {
         $("danmakuErr").style.display = "block";
@@ -372,6 +423,9 @@
       $("cfgOverlayShowMark").checked = !!s.config.ui.overlay_show_mark;
       $("cfgKeyword").value = s.config.queue.keyword ?? "";
       $("cfgMatchExact").checked = (s.config.queue.match_mode ?? "exact") === "exact";
+      $("cfgPauseMessage").value = s.config.queue.pause_message ?? "当前暂停排队";
+      $("cfgAutoPauseTime").value = s.config.queue.auto_pause_time ?? "";
+      $("cfgPauseCheckInterval").value = s.config.queue.pause_check_interval_seconds ?? 60;
       $("cfgMax").value = s.config.queue.max_queue ?? 10;
       $("cfgCssPath").value = s.config.style.custom_css_path ?? "./custom.css";
 
@@ -413,6 +467,19 @@
     $("chkTest").onchange = async () => {
       try { await api("/api/runtime/test_enable", { enabled: $("chkTest").checked }); } catch (e) { alert(String(e)); }
     };
+    $("btnPauseQueue").onclick = async () => {
+      try {
+        const paused = !!(state.latest?.runtime?.queue_paused);
+        await api("/api/queue/pause", { paused: !paused });
+      } catch (e) { alert(String(e)); }
+    };
+    $("btnApplyAutoPause").onclick = async () => {
+      try {
+        const timeStr = $("tmpAutoPause").value.trim();
+        await api("/api/queue/auto_pause_minutes", { time_str: timeStr });
+      } catch (e) { alert(String(e)); }
+    };
+    $("tmpAutoPause").addEventListener("input", () => { state.tmpAutoPauseTouched = true; });
     $("btnCopyOverlay").onclick = async () => {
       const url = $("overlayUrl").textContent;
       try { await navigator.clipboard.writeText(url); } catch {}
@@ -454,6 +521,9 @@
           overlay_show_mark: $("cfgOverlayShowMark").checked,
           keyword: $("cfgKeyword").value,
           match_mode: $("cfgMatchExact").checked ? "exact" : "contains",
+          pause_message: $("cfgPauseMessage").value,
+          auto_pause_time: $("cfgAutoPauseTime").value,
+          pause_check_interval_seconds: Number($("cfgPauseCheckInterval").value),
           max_queue: Number($("cfgMax").value),
           custom_css_path: $("cfgCssPath").value,
           bilibili_mode: $("biliMode").value,

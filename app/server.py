@@ -27,8 +27,10 @@ from .context import AppContext
 from .events import DanmakuEvent
 from .models import (
     ConfigUpdateIn,
+    QueueAutoPauseIn,
     QueuePinTopIn,
     QueueRemoveIn,
+    QueuePauseIn,
     QueueToggleMarkIn,
     RuntimeTestEnableIn,
     TestDanmakuIn,
@@ -145,14 +147,62 @@ def build_app(
             server = ServerConfig(host=server.host, port=int(body.port))
 
         if body.keyword is not None:
-            queue = QueueConfig(keyword=body.keyword, max_queue=queue.max_queue, match_mode=queue.match_mode)
+            queue = QueueConfig(
+                keyword=body.keyword,
+                max_queue=queue.max_queue,
+                match_mode=queue.match_mode,
+                pause_message=queue.pause_message,
+                auto_pause_time=queue.auto_pause_time,
+                pause_check_interval_seconds=queue.pause_check_interval_seconds,
+            )
         if body.max_queue is not None:
-            queue = QueueConfig(keyword=queue.keyword, max_queue=int(body.max_queue), match_mode=queue.match_mode)
+            queue = QueueConfig(
+                keyword=queue.keyword,
+                max_queue=int(body.max_queue),
+                match_mode=queue.match_mode,
+                pause_message=queue.pause_message,
+                auto_pause_time=queue.auto_pause_time,
+                pause_check_interval_seconds=queue.pause_check_interval_seconds,
+            )
         if body.match_mode is not None:
             mm = str(body.match_mode).strip().lower()
             if mm not in ("exact", "contains"):
                 raise HTTPException(status_code=400, detail="queue.match_mode must be 'exact' or 'contains'")
-            queue = QueueConfig(keyword=queue.keyword, max_queue=queue.max_queue, match_mode=mm)
+            queue = QueueConfig(
+                keyword=queue.keyword,
+                max_queue=queue.max_queue,
+                match_mode=mm,
+                pause_message=queue.pause_message,
+                auto_pause_time=queue.auto_pause_time,
+                pause_check_interval_seconds=queue.pause_check_interval_seconds,
+            )
+        if body.pause_message is not None:
+            queue = QueueConfig(
+                keyword=queue.keyword,
+                max_queue=queue.max_queue,
+                match_mode=queue.match_mode,
+                pause_message=body.pause_message,
+                auto_pause_time=queue.auto_pause_time,
+                pause_check_interval_seconds=queue.pause_check_interval_seconds,
+            )
+        if body.auto_pause_time is not None:
+            queue = QueueConfig(
+                keyword=queue.keyword,
+                max_queue=queue.max_queue,
+                match_mode=queue.match_mode,
+                pause_message=queue.pause_message,
+                auto_pause_time=body.auto_pause_time,
+                pause_check_interval_seconds=queue.pause_check_interval_seconds,
+            )
+        if body.pause_check_interval_seconds is not None:
+            queue = QueueConfig(
+                keyword=queue.keyword,
+                max_queue=queue.max_queue,
+                match_mode=queue.match_mode,
+                pause_message=queue.pause_message,
+                auto_pause_time=queue.auto_pause_time,
+                pause_check_interval_seconds=int(body.pause_check_interval_seconds),
+            )
 
         if body.overlay_title is not None:
             ui = UiConfig(
@@ -304,6 +354,20 @@ def build_app(
         if not ok:
             raise HTTPException(status_code=404, detail="not found")
         await ctx.broadcast_state()
+        return ctx.state_payload()
+
+    @app.post("/api/queue/pause")
+    async def api_queue_pause(body: QueuePauseIn) -> dict[str, Any]:
+        ok, err = await ctx.set_queue_paused(body.paused, reason=body.reason)
+        if not ok:
+            raise HTTPException(status_code=400, detail=err or "failed")
+        return ctx.state_payload()
+
+    @app.post("/api/queue/auto_pause_minutes")
+    async def api_queue_auto_pause_minutes(body: QueueAutoPauseIn) -> dict[str, Any]:
+        ok, err = await ctx.set_auto_pause_time(body.time_str)
+        if not ok:
+            raise HTTPException(status_code=400, detail=err or "failed")
         return ctx.state_payload()
 
     @app.post("/api/queue/pin_top")
