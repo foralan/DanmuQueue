@@ -60,5 +60,9 @@ class ConfigUpdateIn(BaseModel):
     # danmaku: web
     web_sessdata: str | None = None
     web_room_id: int | None = None
+    web_auto_fetch_cookie: bool | None = None
+
+    # danmaku: mode
+    bilibili_mode: str | None = None
 
 

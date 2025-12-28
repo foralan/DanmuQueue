@@ -10,6 +10,7 @@ CONFIG_PATH = "config.yaml"
 CUSTOM_CSS_PATH = "custom.css"
 
 QueueMatchMode = Literal["exact", "contains"]
+DanmakuModePref = Literal["auto", "open_live", "web"]
 
 @dataclass(frozen=True)
 class ServerConfig:
@@ -59,10 +60,12 @@ class WebDanmakuConfig:
     # Web端（需要SESSDATA）
     sessdata: str = ""
     room_id: int = 0
+    auto_fetch_cookie: bool = False
 
 
 @dataclass(frozen=True)
 class BiliConfig:
+    mode: DanmakuModePref = "auto"
     open_live: OpenLiveConfig = OpenLiveConfig()
     web: WebDanmakuConfig = WebDanmakuConfig()
 
@@ -99,17 +102,33 @@ def save_config(cfg: AppConfig, path: Path) -> None:
 def select_danmaku_mode(cfg: AppConfig) -> tuple[DanmakuMode | None, str | None]:
     """
     Return (mode, error_message). If mode is None, error_message is non-empty.
-    Priority: open_live > web(SESSDATA) > error.
+    Priority (auto): web(SESSDATA) > open_live > error.
     """
-    ol = cfg.bilibili.open_live
-    if _open_live_is_complete(ol):
-        return "open_live", None
+    prefer = getattr(cfg.bilibili, "mode", "auto")
 
-    web = cfg.bilibili.web
-    if web.sessdata.strip():
+    def _web_checks() -> tuple[DanmakuMode | None, str | None]:
+        web = cfg.bilibili.web
+        if not web.sessdata.strip():
+            return None, "bilibili.web.sessdata is required when using web mode"
         if web.room_id <= 0:
             return None, "bilibili.web.room_id is required when using SESSDATA(web mode)"
         return "web", None
+
+    ol = cfg.bilibili.open_live
+    if prefer == "open_live":
+        if _open_live_is_complete(ol):
+            return "open_live", None
+        return None, "bilibili.mode=open_live 但开放平台配置不完整"
+
+    if prefer == "web":
+        return _web_checks()
+
+    # auto: prefer web first, then open_live
+    web = cfg.bilibili.web
+    if web.sessdata.strip():
+        return _web_checks()
+    if _open_live_is_complete(ol):
+        return "open_live", None
 
     return None, "Missing danmaku config: provide bilibili.open_live.* or bilibili.web.sessdata"
 
@@ -133,6 +152,8 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
 
     open_live = bilibili.get("open_live") or {}
     web = bilibili.get("web") or {}
+    mode_raw = str(bilibili.get("mode", "auto")).strip().lower()
+    mode: DanmakuModePref = "auto" if mode_raw not in ("auto", "open_live", "web") else mode_raw  # type: ignore[assignment]
 
     mm_raw = str(queue.get("match_mode", DEFAULT_CONFIG.queue.match_mode)).strip().lower()
     match_mode: QueueMatchMode = "exact" if mm_raw not in ("exact", "contains") else mm_raw  # type: ignore[assignment]
@@ -163,6 +184,7 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
             autostart=bool(runtime.get("autostart", DEFAULT_CONFIG.runtime.autostart)),
         ),
         bilibili=BiliConfig(
+            mode=mode,
             open_live=OpenLiveConfig(
                 access_key=str(open_live.get("access_key", "")),
                 access_secret=str(open_live.get("access_secret", "")),
@@ -172,6 +194,7 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
             web=WebDanmakuConfig(
                 sessdata=str(web.get("sessdata", "")),
                 room_id=int(web.get("room_id", 0) or 0),
+                auto_fetch_cookie=bool(web.get("auto_fetch_cookie", False)),
             ),
         ),
     )
@@ -191,6 +214,7 @@ def _to_dict(cfg: AppConfig) -> dict[str, Any]:
         },
         "style": {"custom_css_path": cfg.style.custom_css_path},
         "bilibili": {
+            "mode": cfg.bilibili.mode,
             "open_live": {
                 "access_key": cfg.bilibili.open_live.access_key,
                 "access_secret": cfg.bilibili.open_live.access_secret,
@@ -200,6 +224,7 @@ def _to_dict(cfg: AppConfig) -> dict[str, Any]:
             "web": {
                 "sessdata": cfg.bilibili.web.sessdata,
                 "room_id": cfg.bilibili.web.room_id,
+                "auto_fetch_cookie": cfg.bilibili.web.auto_fetch_cookie,
             },
         },
         "runtime": {"test_enabled": cfg.runtime.test_enabled, "autostart": cfg.runtime.autostart},

@@ -14,5 +14,6 @@ class RuntimeState:
 
     danmaku_status: str = "idle"  # idle|running|error
     danmaku_error: str | None = None
+    active_mode: str | None = None
 
 

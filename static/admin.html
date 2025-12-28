@@ -120,6 +120,16 @@
             </div>
           </div>
           <div class="kvRow">
+            <div class="kvLabel">弹幕模式</div>
+            <div class="kvValue">
+              <select id="biliMode" style="width: 100%; padding: 8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.25); color:#e8eef6;">
+                <option value="auto">自动（优先 Web，失败则用开放平台）</option>
+                <option value="open_live">仅开放平台</option>
+                <option value="web">仅 Web（SESSDATA）</option>
+              </select>
+            </div>
+          </div>
+          <div class="kvRow">
             <div class="kvLabel">最大队列（max_queue，含 0 号）</div>
             <div class="kvValue"><input id="cfgMax" type="number" min="1" step="1" /></div>
           </div>
@@ -163,6 +173,19 @@
       <summary>Web 端</summary>
       <div class="sectionBody">
         <div class="kvList">
+          <div class="kvRow">
+            <div class="kvLabel">自动获取浏览器 SESSDATA</div>
+            <div class="kvValue">
+              <label class="checkLabel">
+                <input id="webAutoFetch" type="checkbox" />
+                自动从本机 Chrome/Edge/Firefox 读取登录 Cookie（需安装 browser-cookie3）
+              </label>
+              <div style="margin-top:6px;">
+                <button id="btnFetchSessdata" type="button">尝试立即获取</button>
+                <span id="fetchSessMsg" class="muted"></span>
+              </div>
+            </div>
+          </div>
           <div class="kvRow">
             <div class="kvLabel">SESSDATA</div>
             <div class="kvValue"><input id="webSessdata" type="password" placeholder="" /></div>
@@ -250,7 +273,8 @@
 
       // runtime
       $("runtimePill").textContent = `runtime: ${s.runtime.status}`;
-      $("danmakuPill").textContent = `danmaku: ${s.runtime.danmaku_status}`;
+      const modeLabel = s.runtime.active_mode ? ` (${s.runtime.active_mode})` : "";
+      $("danmakuPill").textContent = `danmaku: ${s.runtime.danmaku_status}${modeLabel}`;
       $("runtimePill").className = "pill";
       $("danmakuPill").className = "pill";
       if (s.runtime.status === "running") $("runtimePill").classList.add("pill--good");
@@ -351,8 +375,10 @@
       $("cfgMax").value = s.config.queue.max_queue ?? 10;
       $("cfgCssPath").value = s.config.style.custom_css_path ?? "./custom.css";
 
+      $("biliMode").value = s.config.bilibili.mode ?? "auto";
       $("webSessdata").value = s.config.bilibili.web.sessdata ? SECRET_MASK : "";
       $("webRoomId").value = s.config.bilibili.web.room_id ?? 0;
+      $("webAutoFetch").checked = !!s.config.bilibili.web.auto_fetch_cookie;
 
       $("olAccessKey").value = s.config.bilibili.open_live.access_key ?? "";
       $("olAccessSecret").value = s.config.bilibili.open_live.access_secret ? SECRET_MASK : "";
@@ -391,6 +417,21 @@
       const url = $("overlayUrl").textContent;
       try { await navigator.clipboard.writeText(url); } catch {}
     };
+    $("btnFetchSessdata").onclick = async () => {
+      $("fetchSessMsg").textContent = "获取中…";
+      try {
+        const res = await api("/api/bilibili/fetch_sessdata");
+        const val = res?.sessdata || "";
+        if (val) {
+          $("webSessdata").value = val;
+          $("fetchSessMsg").textContent = "已填充 SESSDATA";
+        } else {
+          $("fetchSessMsg").textContent = "未从浏览器获取到 SESSDATA";
+        }
+      } catch (e) {
+        $("fetchSessMsg").textContent = String(e);
+      }
+    };
     $("btnSaveCfg").onclick = async () => {
       $("saveCfgMsg").textContent = "保存中…";
       try {
@@ -415,6 +456,7 @@
           match_mode: $("cfgMatchExact").checked ? "exact" : "contains",
           max_queue: Number($("cfgMax").value),
           custom_css_path: $("cfgCssPath").value,
+          bilibili_mode: $("biliMode").value,
 
           open_live_access_key: $("olAccessKey").value,
           ...(olSecretVal === SECRET_MASK ? {} : { open_live_access_secret: olSecretVal }),
@@ -423,6 +465,7 @@
 
           ...(webSessVal === SECRET_MASK ? {} : { web_sessdata: webSessVal }),
           web_room_id: Number($("webRoomId").value),
+          web_auto_fetch_cookie: $("webAutoFetch").checked,
         });
         $("saveCfgMsg").textContent = "已保存，正在重启…";
 

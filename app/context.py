@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from .config import CONFIG_PATH, AppConfig, load_config, select_danmaku_mode
+from .bili_utils import fetch_sessdata_from_browser, verify_sessdata
+from .config import CONFIG_PATH, AppConfig, DanmakuMode, load_config, select_danmaku_mode
 from .danmaku import build_client, run_client_until_cancelled
 from .events import DanmakuEvent
 from .queue import QueueCore
@@ -22,6 +24,7 @@ class AppContext:
             status="stopped",
             test_enabled=bool(self.cfg.runtime.test_enabled),
             danmaku_status="idle",
+            active_mode=None,
         )
 
         self.queue = QueueCore()
@@ -85,19 +88,21 @@ class AppContext:
 
     async def start_runtime(self) -> tuple[bool, str | None]:
         async with self._lock:
-            mode, err = select_danmaku_mode(self.cfg)
+            effective_cfg, mode, err = await self._prepare_runtime_config()
             if err:
                 self.runtime.danmaku_status = "error"
                 self.runtime.danmaku_error = err
+                self.runtime.active_mode = None
                 return False, err
 
             self.runtime.status = "running"
             self.runtime.danmaku_status = "running"
             self.runtime.danmaku_error = None
+            self.runtime.active_mode = mode
             # Apply persisted toggle from config on start (user can pre-check before start).
             self.runtime.test_enabled = bool(self.cfg.runtime.test_enabled)
 
-            await self._start_danmaku_locked(mode)
+            await self._start_danmaku_locked(effective_cfg, mode)
 
         await self.broadcast_state()
         return True, None
@@ -109,6 +114,7 @@ class AppContext:
             self.runtime.test_enabled = bool(self.cfg.runtime.test_enabled)
             self.runtime.danmaku_status = "idle"
             self.runtime.danmaku_error = None
+            self.runtime.active_mode = None
 
             if self._danmaku_task and not self._danmaku_task.done():
                 self._danmaku_task.cancel()
@@ -136,12 +142,14 @@ class AppContext:
 
             # If running, restart danmaku with new config.
             if self.runtime.status == "running":
-                mode, err = select_danmaku_mode(self.cfg)
+                effective_cfg, mode, err = await self._prepare_runtime_config()
                 if err:
                     self.runtime.danmaku_status = "error"
                     self.runtime.danmaku_error = err
+                    self.runtime.active_mode = None
                 else:
-                    await self._start_danmaku_locked(mode, restart=True)
+                    self.runtime.active_mode = mode
+                    await self._start_danmaku_locked(effective_cfg, mode, restart=True)
             else:
                 # If not running, still refresh danmaku status for UI display.
                 mode, err = select_danmaku_mode(self.cfg)
@@ -151,6 +159,7 @@ class AppContext:
                 else:
                     self.runtime.danmaku_status = "idle"
                     self.runtime.danmaku_error = None
+                    self.runtime.active_mode = None
         await self.broadcast_state()
         return True, None
 
@@ -171,6 +180,7 @@ class AppContext:
                 "overlay_url": self.overlay_url(),
                 "danmaku_status": self.runtime.danmaku_status,
                 "danmaku_error": self.runtime.danmaku_error,
+                "active_mode": self.runtime.active_mode,
             },
             "config": {
                 "server": {"host": self.cfg.server.host, "port": self.cfg.server.port},
@@ -189,6 +199,7 @@ class AppContext:
                 },
                 "style": {"custom_css_path": self.cfg.style.custom_css_path},
                 "bilibili": {
+                    "mode": getattr(self.cfg.bilibili, "mode", "auto"),
                     "open_live": {
                         "access_key": self.cfg.bilibili.open_live.access_key,
                         "access_secret": secret_mask if self.cfg.bilibili.open_live.access_secret else "",
@@ -198,6 +209,7 @@ class AppContext:
                     "web": {
                         "sessdata": secret_mask if self.cfg.bilibili.web.sessdata else "",
                         "room_id": self.cfg.bilibili.web.room_id,
+                        "auto_fetch_cookie": self.cfg.bilibili.web.auto_fetch_cookie,
                     },
                 },
             },
@@ -213,7 +225,7 @@ class AppContext:
 
     # _handle_event removed; use process_event() for both async and sync paths.
 
-    async def _start_danmaku_locked(self, mode: str, restart: bool = False) -> None:
+    async def _start_danmaku_locked(self, cfg: AppConfig, mode: str, restart: bool = False) -> None:
         if restart and self._danmaku_task and not self._danmaku_task.done():
             self._danmaku_task.cancel()
             self._danmaku_task = None
@@ -221,7 +233,7 @@ class AppContext:
         if self._danmaku_task and not self._danmaku_task.done():
             return
 
-        rt = build_client(self.cfg, mode, self.put_event)
+        rt = build_client(cfg, mode, self.put_event)
 
         async def runner() -> None:
             try:
@@ -236,5 +248,38 @@ class AppContext:
                 await self.broadcast_state()
 
         self._danmaku_task = asyncio.create_task(runner())
+
+    async def _prepare_runtime_config(self) -> tuple[AppConfig | None, DanmakuMode | None, str | None]:
+        """
+        Returns (effective_cfg, mode, error).
+        - If auto_fetch_cookie is enabled, load SESSDATA from local browsers (non-persisted).
+        - For web mode, verifies SESSDATA before starting.
+        """
+        cfg = self.cfg
+        web = cfg.bilibili.web
+        sessdata = web.sessdata
+        if web.auto_fetch_cookie:
+            sessdata, err = fetch_sessdata_from_browser()
+            if err:
+                return None, None, err
+
+        # Build an effective config used only for this runtime start.
+        web_cfg = replace(web, sessdata=sessdata)
+        bili_cfg = replace(cfg.bilibili, web=web_cfg)
+        effective_cfg = replace(cfg, bilibili=bili_cfg)
+
+        mode, err = select_danmaku_mode(effective_cfg)
+        if err:
+            return None, None, err
+
+        if mode == "web":
+            ok, msg = await verify_sessdata(sessdata)
+            if not ok:
+                return None, None, msg
+
+        return effective_cfg, mode, None
+
+    def fetch_browser_sessdata(self) -> tuple[str | None, str | None]:
+        return fetch_sessdata_from_browser()
 
 

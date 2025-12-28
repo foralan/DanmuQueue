@@ -11,6 +11,7 @@ dependencies = [
   "blivedm @ git+https://github.com/xfgryujk/blivedm.git@dev",
   "aiohttp>=3.9",
   "websockets>=15.0.1",
+  "browser-cookie3>=0.19.1",
 ]
 
 [project.scripts]

@@ -214,6 +214,12 @@ def build_app(
 
         ol = bili.open_live
         wb = bili.web
+        mode = getattr(bili, "mode", "auto")
+        if body.bilibili_mode is not None:
+            mode_raw = str(body.bilibili_mode).strip().lower()
+            if mode_raw not in ("auto", "open_live", "web"):
+                raise HTTPException(status_code=400, detail="bilibili_mode must be one of auto|open_live|web")
+            mode = mode_raw
         if body.open_live_access_key is not None:
             ol = OpenLiveConfig(
                 access_key=body.open_live_access_key,
@@ -244,11 +250,25 @@ def build_app(
             )
 
         if body.web_sessdata is not None:
-            wb = WebDanmakuConfig(sessdata=body.web_sessdata, room_id=wb.room_id)
+            wb = WebDanmakuConfig(
+                sessdata=body.web_sessdata,
+                room_id=wb.room_id,
+                auto_fetch_cookie=wb.auto_fetch_cookie,
+            )
         if body.web_room_id is not None:
-            wb = WebDanmakuConfig(sessdata=wb.sessdata, room_id=int(body.web_room_id))
+            wb = WebDanmakuConfig(
+                sessdata=wb.sessdata,
+                room_id=int(body.web_room_id),
+                auto_fetch_cookie=wb.auto_fetch_cookie,
+            )
+        if body.web_auto_fetch_cookie is not None:
+            wb = WebDanmakuConfig(
+                sessdata=wb.sessdata,
+                room_id=wb.room_id,
+                auto_fetch_cookie=bool(body.web_auto_fetch_cookie),
+            )
 
-        bili = BiliConfig(open_live=ol, web=wb)
+        bili = BiliConfig(mode=mode, open_live=ol, web=wb)
 
         # Always restart into stopped state.
         runtime = RuntimeConfig(
@@ -268,6 +288,13 @@ def build_app(
             "admin_url": f"http://{server.host}:{server.port}/admin",
             "overlay_url": f"http://{server.host}:{server.port}/overlay",
         }
+
+    @app.post("/api/bilibili/fetch_sessdata")
+    async def api_bilibili_fetch_sessdata() -> dict[str, Any]:
+        sess, err = ctx.fetch_browser_sessdata()
+        if err:
+            raise HTTPException(status_code=400, detail=err)
+        return {"sessdata": sess or ""}
 
     @app.post("/api/queue/remove")
     async def api_queue_remove(body: QueueRemoveIn) -> dict[str, Any]:
