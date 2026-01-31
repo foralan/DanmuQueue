@@ -54,6 +54,14 @@ a { color: inherit; text-decoration: none; }
   text-shadow: 0 2px 8px rgba(255,255,255,0.30);
 }
 
+.pauseNotice {
+  display: none;
+  color: #ff0000;
+  font-weight: 700;
+  margin: 10px 0;
+  text-shadow: 0 2px 8px rgba(255,255,255,0.35);
+}
+
 .queue {
   display: flex;
   flex-direction: column;
