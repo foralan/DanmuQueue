@@ -10,6 +10,7 @@
 <body>
   <div class="container">
     <div class="title" id="title">排队</div>
+    <div class="fullNotice" id="fullNotice"></div>
     <div class="pauseNotice" id="pauseNotice"></div>
     <div class="sectionTitle" id="currentTitle">当前</div>
     <div class="queue" id="current"></div>
@@ -114,21 +115,17 @@
         queueRoot.appendChild(div);
       });
 
+      // Full notice (displayed below title, above pause notice)
+      const fullNotice = $("fullNotice");
       if (q.is_full) {
-        const full = document.createElement("div");
-        full.className = "item full";
-        const index = document.createElement("div");
-        index.className = "index";
-        index.textContent = "";
-        const text = document.createElement("div");
-        text.className = "name";
-        text.textContent = "排队已满";
-        full.appendChild(index);
-        full.appendChild(text);
-        queueRoot.appendChild(full);
+        fullNotice.textContent = "排队已满";
+        fullNotice.style.display = "block";
+      } else {
+        fullNotice.textContent = "";
+        fullNotice.style.display = "none";
       }
 
-      // Pause notice (displayed below title, above current)
+      // Pause notice (displayed below full notice, above current)
       const pauseNotice = $("pauseNotice");
       if (paused) {
         pauseNotice.textContent = pauseMessage;

@@ -54,6 +54,7 @@ a { color: inherit; text-decoration: none; }
   text-shadow: 0 2px 8px rgba(255,255,255,0.30);
 }
 
+.fullNotice,
 .pauseNotice {
   display: none;
   color: #ff0000;
