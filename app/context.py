@@ -3,11 +3,10 @@ from __future__ import annotations
 import asyncio
 import time
 from datetime import datetime, timedelta
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from .bili_utils import fetch_sessdata_from_browser, verify_sessdata
+from .bili_utils import verify_sessdata
 from .config import CONFIG_PATH, AppConfig, DanmakuMode, load_config, select_danmaku_mode
 from .danmaku import build_client, run_client_until_cancelled
 from .events import DanmakuEvent
@@ -255,17 +254,9 @@ class AppContext:
                 },
                 "style": {"custom_css_path": self.cfg.style.custom_css_path},
                 "bilibili": {
-                    "mode": getattr(self.cfg.bilibili, "mode", "auto"),
-                    "open_live": {
-                        "access_key": self.cfg.bilibili.open_live.access_key,
-                        "access_secret": secret_mask if self.cfg.bilibili.open_live.access_secret else "",
-                        "app_id": self.cfg.bilibili.open_live.app_id,
-                        "identity_code": self.cfg.bilibili.open_live.identity_code,
-                    },
                     "web": {
                         "sessdata": secret_mask if self.cfg.bilibili.web.sessdata else "",
                         "room_id": self.cfg.bilibili.web.room_id,
-                        "auto_fetch_cookie": self.cfg.bilibili.web.auto_fetch_cookie,
                     },
                 },
             },
@@ -378,35 +369,17 @@ class AppContext:
     async def _prepare_runtime_config(self) -> tuple[AppConfig | None, DanmakuMode | None, str | None]:
         """
         Returns (effective_cfg, mode, error).
-        - If auto_fetch_cookie is enabled, load SESSDATA from local browsers (non-persisted).
-        - For web mode, verifies SESSDATA before starting.
         """
         cfg = self.cfg
-        web = cfg.bilibili.web
-        sessdata = web.sessdata
-        if web.auto_fetch_cookie:
-            sessdata, err = fetch_sessdata_from_browser()
-            if err:
-                return None, None, err
-
-        # Build an effective config used only for this runtime start.
-        web_cfg = replace(web, sessdata=sessdata)
-        bili_cfg = replace(cfg.bilibili, web=web_cfg)
-        effective_cfg = replace(cfg, bilibili=bili_cfg)
-
-        mode, err = select_danmaku_mode(effective_cfg)
+        mode, err = select_danmaku_mode(cfg)
         if err:
             return None, None, err
 
-        if mode == "web":
-            ok, msg = await verify_sessdata(sessdata)
-            if not ok:
-                return None, None, msg
+        ok, msg = await verify_sessdata(cfg.bilibili.web.sessdata)
+        if not ok:
+            return None, None, msg
 
-        return effective_cfg, mode, None
-
-    def fetch_browser_sessdata(self) -> tuple[str | None, str | None]:
-        return fetch_sessdata_from_browser()
+        return cfg, mode, None
 
 
 def _is_valid_hhmm(s: str) -> bool:

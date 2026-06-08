@@ -8,6 +8,5 @@ class DanmakuEvent:
     uname: str
     msg: str
     user_key: str | None = None
-    source: str = "unknown"  # web|open_live|test
-
+    source: str = "unknown"  # web|test
 

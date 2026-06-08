@@ -57,19 +57,9 @@ class ConfigUpdateIn(BaseModel):
     # style
     custom_css_path: str | None = None
 
-    # danmaku: open live
-    open_live_access_key: str | None = None
-    open_live_access_secret: str | None = None
-    open_live_app_id: int | None = None
-    open_live_identity_code: str | None = None
-
     # danmaku: web
     web_sessdata: str | None = None
     web_room_id: int | None = None
-    web_auto_fetch_cookie: bool | None = None
-
-    # danmaku: mode
-    bilibili_mode: str | None = None
 
 
 class QueuePauseIn(BaseModel):
@@ -79,4 +69,3 @@ class QueuePauseIn(BaseModel):
 
 class QueueAutoPauseIn(BaseModel):
     time_str: str  # "HH:MM"
-

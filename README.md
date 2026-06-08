@@ -6,7 +6,7 @@
 - 队列管理：移除 / 置顶到 1 号 / 标记
 - 满队列提示：“排队已满”（`max_queue` 限制 **总人数：current+waiting**）
 - 样式：内置默认透明样式 + `custom.css` 覆盖
-- 弹幕来源：优先 B 站开放平台；否则 SESSDATA(web)；都没有则无法启动监听
+- 弹幕来源：B 站 Web 端 SESSDATA
 - 测试注入：`/test` 页面通过 HTTP 注入弹幕，后端按 keyword 真检测
 
 ## 运行
@@ -15,8 +15,7 @@
 
 ```bash
 uv sync
-source .venv/bin/activate
-python -m app.run
+uv run python -m app.run
 ```
 
 首次运行会自动生成：
@@ -51,20 +50,7 @@ python -m app.run
 - `ui.queue_title`: `"队列"`
 - `style.custom_css_path`: `./custom.css`
 
-弹幕配置（二选一，**优先 open_live**）：
-
-### 1) 开放平台（open_live）
-
-```yaml
-bilibili:
-  open_live:
-    access_key: "xxx"
-    access_secret: "yyy"
-    app_id: 123456
-    identity_code: "主播身份码"
-```
-
-### 2) Web 端（SESSDATA）
+弹幕配置：
 
 ```yaml
 bilibili:
@@ -87,4 +73,3 @@ bilibili:
   --font-size: 34px;
 }
 ```
-

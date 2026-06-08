@@ -3,11 +3,10 @@ from __future__ import annotations
 import asyncio
 import http.cookies
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable
 
 import aiohttp
 import blivedm
-import blivedm.models.open_live as open_models
 import blivedm.models.web as web_models
 
 from .config import AppConfig, DanmakuMode
@@ -34,19 +33,6 @@ class _Handler(blivedm.BaseHandler):
             )
         )
 
-    def _on_open_live_danmaku(self, client: blivedm.OpenLiveClient, message: open_models.DanmakuMessage):
-        asyncio.create_task(
-            self._push_event(
-                DanmakuEvent(
-                    uname=message.uname,
-                    msg=message.msg,
-                    user_key=message.open_id or message.uname,
-                    source="open_live",
-                )
-            )
-        )
-
-
 @dataclass
 class DanmakuRuntime:
     mode: DanmakuMode
@@ -67,20 +53,6 @@ def _make_session_with_sessdata(sessdata: str) -> aiohttp.ClientSession:
 def build_client(cfg: AppConfig, mode: DanmakuMode, push_event: PushEvent) -> DanmakuRuntime:
     handler = _Handler(push_event)
 
-    if mode == "open_live":
-        ol = cfg.bilibili.open_live
-        session = aiohttp.ClientSession()
-        client = blivedm.OpenLiveClient(
-            ol.access_key,
-            ol.access_secret,
-            int(ol.app_id),
-            ol.identity_code,
-            session=session,
-        )
-        client.set_handler(handler)
-        return DanmakuRuntime(mode=mode, client=client, session=session, own_session=True)
-
-    # web
     web = cfg.bilibili.web
     session = _make_session_with_sessdata(web.sessdata)
     client = blivedm.BLiveClient(int(web.room_id), session=session)
@@ -109,5 +81,4 @@ async def run_client_until_cancelled(rt: DanmakuRuntime) -> None:
                 await rt.session.close()
             except Exception:
                 pass
-
 
