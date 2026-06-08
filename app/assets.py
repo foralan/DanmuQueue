@@ -15,10 +15,11 @@ DEFAULT_CSS = r"""
   --line-height: 1.25;
 
   --item-gap: 8px;
-  --item-padding-y: 10px;
-  --item-padding-x: 14px;
+  --item-inline-gap: 2px;
+  --item-padding-y: 4px;
+  --item-padding-x: 2px;
   --item-radius: 10px;
-  --item-border-width: 1px;
+  --item-border-width: 0px;
 
   --shadow: 0 0 0 rgba(0,0,0,0);
 }
@@ -54,6 +55,11 @@ a { color: inherit; text-decoration: none; }
   text-shadow: 0 2px 8px rgba(255,255,255,0.30);
 }
 
+.pauseInline {
+  font-weight: 800;
+  text-shadow: 0 2px 8px rgba(255,255,255,0.30);
+}
+
 .fullNotice,
 .pauseNotice {
   display: none;
@@ -77,12 +83,12 @@ a { color: inherit; text-decoration: none; }
   box-shadow: var(--shadow);
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: var(--item-inline-gap);
 }
 
 .index {
   font-weight: 800;
-  min-width: 1.0em;
+  min-width: 0.6em;
   opacity: 0.95;
 }
 
@@ -120,5 +126,3 @@ a { color: inherit; text-decoration: none; }
   margin-top: 10px;
 }
 """.lstrip()
-
-

@@ -72,6 +72,18 @@ class AppContext:
         async with self._lock:
             if self.runtime.status != "running":
                 return False, "not_running"
+            msg = (ev.msg or "").strip()
+            mode = self.cfg.queue.match_mode
+
+            priority_keyword = (self.cfg.queue.priority_keyword or "").strip()
+            if priority_keyword:
+                priority_matched = msg == priority_keyword if mode == "exact" else priority_keyword in msg
+                if priority_matched:
+                    user_key = (ev.user_key or ev.uname).strip()
+                    if not user_key:
+                        return False, "no_user_key"
+                    return self.queue.priority_enqueue(user_key=user_key, uname=ev.uname)
+
             if self.runtime.queue_paused:
                 return False, "paused"
 
@@ -79,8 +91,6 @@ class AppContext:
             if not keyword:
                 return False, "no_keyword"
 
-            msg = (ev.msg or "").strip()
-            mode = self.cfg.queue.match_mode
             if mode == "exact":
                 if msg != keyword:
                     return False, "no_match"
@@ -226,6 +236,7 @@ class AppContext:
                 "server": {"host": self.cfg.server.host, "port": self.cfg.server.port},
                 "queue": {
                     "keyword": self.cfg.queue.keyword,
+                    "priority_keyword": self.cfg.queue.priority_keyword,
                     "max_queue": max_q,
                     "match_mode": self.cfg.queue.match_mode,
                     "pause_message": self.cfg.queue.pause_message,
@@ -238,6 +249,8 @@ class AppContext:
                     "queue_title": self.cfg.ui.queue_title,
                     "empty_text": self.cfg.ui.empty_text,
                     "marked_color": self.cfg.ui.marked_color,
+                    "priority_color": self.cfg.ui.priority_color,
+                    "pause_color": self.cfg.ui.pause_color,
                     "overlay_show_mark": self.cfg.ui.overlay_show_mark,
                 },
                 "style": {"custom_css_path": self.cfg.style.custom_css_path},
@@ -416,5 +429,3 @@ def _next_timestamp_for_time_str(time_str: str) -> float | None:
     if target <= now:
         target = target + timedelta(days=1)
     return target.timestamp()
-
-

@@ -12,9 +12,9 @@
     <div class="title" id="title">排队</div>
     <div class="fullNotice" id="fullNotice"></div>
     <div class="pauseNotice" id="pauseNotice"></div>
-    <div class="sectionTitle" id="currentTitle">当前</div>
+    <div class="sectionTitle" id="currentTitle">"当前"</div>
     <div class="queue" id="current"></div>
-    <div class="sectionTitle" id="queueTitle">队列</div>
+    <div class="sectionTitle" id="queueTitle">"队列"</div>
     <div class="queue" id="queue"></div>
     <div class="hint" id="hint"></div>
   </div>
@@ -24,15 +24,26 @@
 
     function render(s) {
       $("title").textContent = s.config?.ui?.overlay_title ?? "排队";
-      $("currentTitle").textContent = s.config?.ui?.current_title ?? "当前";
-      $("queueTitle").textContent = s.config?.ui?.queue_title ?? "队列";
+      $("queueTitle").textContent = s.config?.ui?.queue_title ?? '"队列"';
       const showMark = !!s.config?.ui?.overlay_show_mark;
       const emptyText = s.config?.ui?.empty_text ?? "当前无人排队";
+      const markedColor = s.config?.ui?.marked_color || "#ff5a5a";
+      const priorityColor = s.config?.ui?.priority_color || "#ff0000";
+      const pauseColor = s.config?.ui?.pause_color || "#ff5a5a";
 
       const q = s.queue ?? { items: [], max_queue: 0, total: 0, is_full: false };
       const items = q.items ?? [];
-      const pauseMessage = q.pause_message || s.config?.queue?.pause_message || "当前暂停排队";
+      const pauseMessage = q.pause_message || s.config?.queue?.pause_message || "[暂停排队]";
       const paused = !!q.paused;
+      const currentTitle = $("currentTitle");
+      currentTitle.textContent = s.config?.ui?.current_title ?? '"当前"';
+      if (paused) {
+        const pauseBadge = document.createElement("span");
+        pauseBadge.className = "pauseInline";
+        pauseBadge.textContent = pauseMessage;
+        pauseBadge.style.color = pauseColor;
+        currentTitle.prepend(pauseBadge);
+      }
 
       const curRoot = $("current");
       const queueRoot = $("queue");
@@ -55,7 +66,6 @@
         // Hard guarantee: keep index/username/mark on the same row even if CSS is missing/overridden.
         div.style.display = "flex";
         div.style.alignItems = "center";
-        div.style.gap = "4px";
         div.style.flexWrap = "nowrap";
 
         const index = document.createElement("span");
@@ -66,12 +76,14 @@
         const name = document.createElement("span");
         name.className = "name";
         name.textContent = it ? (it.uname ?? it.user_key ?? "-") : emptyText;
+        if (it && it.priority) name.style.color = priorityColor;
+        if (it && it.marked) name.style.color = markedColor;
 
         div.appendChild(index);
         div.appendChild(name);
 
         // Mark is optional via config.
-        if (isMarked) {
+        if (it && it.marked && showMark) {
           const badge = document.createElement("span");
           badge.className = "badge";
           badge.textContent = "标记";
@@ -90,7 +102,6 @@
         // Hard guarantee: keep index/username/mark on the same row even if CSS is missing/overridden.
         div.style.display = "flex";
         div.style.alignItems = "center";
-        div.style.gap = "4px";
         div.style.flexWrap = "nowrap";
 
         const index = document.createElement("span");
@@ -100,12 +111,14 @@
         const name = document.createElement("span");
         name.className = "name";
         name.textContent = it.uname ?? it.user_key ?? "-";
+        if (it.priority) name.style.color = priorityColor;
+        if (it.marked) name.style.color = markedColor;
 
         div.appendChild(index);
         div.appendChild(name);
 
         // Mark is optional via config.
-        if (isMarked) {
+        if (it.marked && showMark) {
           const badge = document.createElement("span");
           badge.className = "badge";
           badge.textContent = "标记";
@@ -125,15 +138,10 @@
         fullNotice.style.display = "none";
       }
 
-      // Pause notice (displayed below full notice, above current)
+      // Pause notice is rendered inline beside current title.
       const pauseNotice = $("pauseNotice");
-      if (paused) {
-        pauseNotice.textContent = pauseMessage;
-        pauseNotice.style.display = "block";
-      } else {
-        pauseNotice.textContent = "";
-        pauseNotice.style.display = "none";
-      }
+      pauseNotice.textContent = "";
+      pauseNotice.style.display = "none";
     }
 
     function connectWs() {
@@ -160,5 +168,3 @@
   </script>
 </body>
 </html>
-
-

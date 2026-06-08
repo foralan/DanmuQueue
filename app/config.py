@@ -21,9 +21,10 @@ class ServerConfig:
 @dataclass(frozen=True)
 class QueueConfig:
     keyword: str = "排队"
+    priority_keyword: str = "插队"
     max_queue: int = 10  # total: current + waiting
     match_mode: QueueMatchMode = "exact"
-    pause_message: str = "当前暂停排队"
+    pause_message: str = "[暂停排队]"
     auto_pause_time: str = ""  # "HH:MM" local time, empty = disabled
     pause_check_interval_seconds: int = 60  # scheduler tick
 
@@ -31,10 +32,12 @@ class QueueConfig:
 @dataclass(frozen=True)
 class UiConfig:
     overlay_title: str = "排队"
-    current_title: str = "当前"
-    queue_title: str = "队列"
+    current_title: str = '"当前"'
+    queue_title: str = '"队列"'
     empty_text: str = "当前无人排队"
     marked_color: str = "#ff5a5a"
+    priority_color: str = "#ff0000"
+    pause_color: str = "#ff5a5a"
     overlay_show_mark: bool = False
 
 
@@ -168,6 +171,7 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
         ),
         queue=QueueConfig(
             keyword=str(queue.get("keyword", DEFAULT_CONFIG.queue.keyword)),
+            priority_keyword=str(queue.get("priority_keyword", DEFAULT_CONFIG.queue.priority_keyword)),
             max_queue=int(queue.get("max_queue", DEFAULT_CONFIG.queue.max_queue)),
             match_mode=match_mode,
             pause_message=str(queue.get("pause_message", DEFAULT_CONFIG.queue.pause_message)),
@@ -182,6 +186,8 @@ def _parse_config_dict(d: dict[str, Any]) -> AppConfig:
             queue_title=str(ui.get("queue_title", DEFAULT_CONFIG.ui.queue_title)),
             empty_text=str(ui.get("empty_text", DEFAULT_CONFIG.ui.empty_text)),
             marked_color=str(ui.get("marked_color", DEFAULT_CONFIG.ui.marked_color)),
+            priority_color=str(ui.get("priority_color", DEFAULT_CONFIG.ui.priority_color)),
+            pause_color=str(ui.get("pause_color", DEFAULT_CONFIG.ui.pause_color)),
             overlay_show_mark=bool(ui.get("overlay_show_mark", DEFAULT_CONFIG.ui.overlay_show_mark)),
         ),
         style=StyleConfig(
@@ -213,6 +219,7 @@ def _to_dict(cfg: AppConfig) -> dict[str, Any]:
         "server": {"host": cfg.server.host, "port": cfg.server.port},
         "queue": {
             "keyword": cfg.queue.keyword,
+            "priority_keyword": cfg.queue.priority_keyword,
             "max_queue": cfg.queue.max_queue,
             "match_mode": cfg.queue.match_mode,
             "pause_message": cfg.queue.pause_message,
@@ -225,6 +232,8 @@ def _to_dict(cfg: AppConfig) -> dict[str, Any]:
             "queue_title": cfg.ui.queue_title,
             "empty_text": cfg.ui.empty_text,
             "marked_color": cfg.ui.marked_color,
+            "priority_color": cfg.ui.priority_color,
+            "pause_color": cfg.ui.pause_color,
             "overlay_show_mark": cfg.ui.overlay_show_mark,
         },
         "style": {"custom_css_path": cfg.style.custom_css_path},
@@ -244,5 +253,3 @@ def _to_dict(cfg: AppConfig) -> dict[str, Any]:
         },
         "runtime": {"test_enabled": cfg.runtime.test_enabled, "autostart": cfg.runtime.autostart},
     }
-
-

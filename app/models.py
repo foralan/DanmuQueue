@@ -41,10 +41,13 @@ class ConfigUpdateIn(BaseModel):
     queue_title: str | None = None
     empty_text: str | None = None
     marked_color: str | None = None
+    priority_color: str | None = None
+    pause_color: str | None = None
     overlay_show_mark: bool | None = None
 
     # queue
     keyword: str | None = None
+    priority_keyword: str | None = None
     max_queue: int | None = None
     match_mode: str | None = None
     pause_message: str | None = None
@@ -76,5 +79,4 @@ class QueuePauseIn(BaseModel):
 
 class QueueAutoPauseIn(BaseModel):
     time_str: str  # "HH:MM"
-
 

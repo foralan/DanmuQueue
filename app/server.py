@@ -149,6 +149,17 @@ def build_app(
         if body.keyword is not None:
             queue = QueueConfig(
                 keyword=body.keyword,
+                priority_keyword=queue.priority_keyword,
+                max_queue=queue.max_queue,
+                match_mode=queue.match_mode,
+                pause_message=queue.pause_message,
+                auto_pause_time=queue.auto_pause_time,
+                pause_check_interval_seconds=queue.pause_check_interval_seconds,
+            )
+        if body.priority_keyword is not None:
+            queue = QueueConfig(
+                keyword=queue.keyword,
+                priority_keyword=body.priority_keyword,
                 max_queue=queue.max_queue,
                 match_mode=queue.match_mode,
                 pause_message=queue.pause_message,
@@ -158,6 +169,7 @@ def build_app(
         if body.max_queue is not None:
             queue = QueueConfig(
                 keyword=queue.keyword,
+                priority_keyword=queue.priority_keyword,
                 max_queue=int(body.max_queue),
                 match_mode=queue.match_mode,
                 pause_message=queue.pause_message,
@@ -170,6 +182,7 @@ def build_app(
                 raise HTTPException(status_code=400, detail="queue.match_mode must be 'exact' or 'contains'")
             queue = QueueConfig(
                 keyword=queue.keyword,
+                priority_keyword=queue.priority_keyword,
                 max_queue=queue.max_queue,
                 match_mode=mm,
                 pause_message=queue.pause_message,
@@ -179,6 +192,7 @@ def build_app(
         if body.pause_message is not None:
             queue = QueueConfig(
                 keyword=queue.keyword,
+                priority_keyword=queue.priority_keyword,
                 max_queue=queue.max_queue,
                 match_mode=queue.match_mode,
                 pause_message=body.pause_message,
@@ -188,6 +202,7 @@ def build_app(
         if body.auto_pause_time is not None:
             queue = QueueConfig(
                 keyword=queue.keyword,
+                priority_keyword=queue.priority_keyword,
                 max_queue=queue.max_queue,
                 match_mode=queue.match_mode,
                 pause_message=queue.pause_message,
@@ -197,6 +212,7 @@ def build_app(
         if body.pause_check_interval_seconds is not None:
             queue = QueueConfig(
                 keyword=queue.keyword,
+                priority_keyword=queue.priority_keyword,
                 max_queue=queue.max_queue,
                 match_mode=queue.match_mode,
                 pause_message=queue.pause_message,
@@ -211,6 +227,8 @@ def build_app(
                 queue_title=ui.queue_title,
                 empty_text=ui.empty_text,
                 marked_color=ui.marked_color,
+                priority_color=ui.priority_color,
+                pause_color=ui.pause_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
         if body.current_title is not None:
@@ -220,6 +238,8 @@ def build_app(
                 queue_title=ui.queue_title,
                 empty_text=ui.empty_text,
                 marked_color=ui.marked_color,
+                priority_color=ui.priority_color,
+                pause_color=ui.pause_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
         if body.queue_title is not None:
@@ -229,6 +249,8 @@ def build_app(
                 queue_title=body.queue_title,
                 empty_text=ui.empty_text,
                 marked_color=ui.marked_color,
+                priority_color=ui.priority_color,
+                pause_color=ui.pause_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
         if body.empty_text is not None:
@@ -238,6 +260,8 @@ def build_app(
                 queue_title=ui.queue_title,
                 empty_text=str(body.empty_text),
                 marked_color=ui.marked_color,
+                priority_color=ui.priority_color,
+                pause_color=ui.pause_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
         if body.marked_color is not None:
@@ -247,6 +271,30 @@ def build_app(
                 queue_title=ui.queue_title,
                 empty_text=ui.empty_text,
                 marked_color=body.marked_color,
+                priority_color=ui.priority_color,
+                pause_color=ui.pause_color,
+                overlay_show_mark=ui.overlay_show_mark,
+            )
+        if body.priority_color is not None:
+            ui = UiConfig(
+                overlay_title=ui.overlay_title,
+                current_title=ui.current_title,
+                queue_title=ui.queue_title,
+                empty_text=ui.empty_text,
+                marked_color=ui.marked_color,
+                priority_color=body.priority_color,
+                pause_color=ui.pause_color,
+                overlay_show_mark=ui.overlay_show_mark,
+            )
+        if body.pause_color is not None:
+            ui = UiConfig(
+                overlay_title=ui.overlay_title,
+                current_title=ui.current_title,
+                queue_title=ui.queue_title,
+                empty_text=ui.empty_text,
+                marked_color=ui.marked_color,
+                priority_color=ui.priority_color,
+                pause_color=body.pause_color,
                 overlay_show_mark=ui.overlay_show_mark,
             )
         if body.overlay_show_mark is not None:
@@ -256,6 +304,8 @@ def build_app(
                 queue_title=ui.queue_title,
                 empty_text=ui.empty_text,
                 marked_color=ui.marked_color,
+                priority_color=ui.priority_color,
+                pause_color=ui.pause_color,
                 overlay_show_mark=bool(body.overlay_show_mark),
             )
 
@@ -375,9 +425,8 @@ def build_app(
         if ctx.runtime.status != "running":
             raise HTTPException(status_code=400, detail="runtime is not running")
         ok = ctx.queue.pin_top(body.user_key)
-        if not ok:
-            raise HTTPException(status_code=404, detail="not found")
-        await ctx.broadcast_state()
+        if ok:
+            await ctx.broadcast_state()
         return ctx.state_payload()
 
     @app.post("/api/queue/toggle_mark")
@@ -426,5 +475,3 @@ def build_app(
         return _page("admin.html")
 
     return app
-
-

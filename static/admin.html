@@ -12,6 +12,7 @@
     .card { border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:12px; background: rgba(255,255,255,.04); margin-bottom:12px; }
     label { font-size: 12px; opacity:.85; display:block; margin-bottom:4px; }
     input { width: 100%; padding: 8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.25); color:#e8eef6; }
+    input[type="color"] { width: 64px; height: 38px; padding: 3px; }
     .field { min-width: 220px; flex: 1; }
     button { padding: 8px 12px; border-radius: 10px; border:1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); color:#e8eef6; cursor:pointer; }
     button:disabled { opacity:.5; cursor:not-allowed; }
@@ -26,6 +27,10 @@
     .pill--warn { border-color: rgba(255, 210, 64, .45); color: rgba(255, 236, 178, 0.95); background: rgba(255, 210, 64, .10); }
     .pill--bad  { border-color: rgba(255, 90, 90, .55); color: rgba(255, 180, 180, 0.95); background: rgba(255, 90, 90, .10); }
     .markedUser { color: var(--marked-color, #ff5a5a); font-weight: 700; }
+    .priorityUser { color: var(--priority-color, #ff0000); font-weight: 700; }
+    .tag { display:inline-block; margin-left:8px; padding:2px 7px; border-radius:999px; border:1px solid currentColor; font-size:12px; font-weight:700; }
+    .tagPriority { color: var(--priority-color, #ff0000); background: color-mix(in srgb, var(--priority-color, #ff0000) 14%, transparent); }
+    .tagMarked { color: var(--marked-color, #ff5a5a); background: color-mix(in srgb, var(--marked-color, #ff5a5a) 14%, transparent); }
     .links a { color:#9ad0ff; text-decoration:none; }
     .links a:hover { text-decoration:underline; }
 
@@ -96,7 +101,7 @@
           </div>
           <div class="kvRow">
             <div class="kvLabel">当前用户标题（current_title）</div>
-            <div class="kvValue"><input id="cfgCurrentTitle" placeholder="当前" /></div>
+            <div class="kvValue"><input id="cfgCurrentTitle" placeholder='"当前"' /></div>
           </div>
           <div class="kvRow">
             <div class="kvLabel">无人排队提示词（empty_text）</div>
@@ -104,11 +109,15 @@
           </div>
           <div class="kvRow">
             <div class="kvLabel">队列用户标题（queue_title）</div>
-            <div class="kvValue"><input id="cfgQueueTitle" placeholder="队列" /></div>
+            <div class="kvValue"><input id="cfgQueueTitle" placeholder='"队列"' /></div>
           </div>
           <div class="kvRow">
             <div class="kvLabel">排队关键词（keyword）</div>
             <div class="kvValue"><input id="cfgKeyword" placeholder="排队" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">插队口令（priority_keyword）</div>
+            <div class="kvValue"><input id="cfgPriorityKeyword" placeholder="插队" /></div>
           </div>
           <div class="kvRow">
             <div class="kvLabel">匹配模式（match_mode）</div>
@@ -121,7 +130,11 @@
           </div>
           <div class="kvRow">
             <div class="kvLabel">暂停提示文案（pause_message）</div>
-            <div class="kvValue"><input id="cfgPauseMessage" placeholder="当前暂停排队" /></div>
+            <div class="kvValue"><input id="cfgPauseMessage" placeholder="[暂停排队]" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">暂停提示颜色（pause_color）</div>
+            <div class="kvValue"><input id="cfgPauseColor" type="color" /></div>
           </div>
           <div class="kvRow">
             <div class="kvLabel">自动暂停时间（默认，HH:MM）</div>
@@ -152,7 +165,11 @@
 
           <div class="kvRow">
             <div class="kvLabel">标记用户字体颜色（marked_color）</div>
-            <div class="kvValue"><input id="cfgMarkedColor" placeholder="#ff5a5a" /></div>
+            <div class="kvValue"><input id="cfgMarkedColor" type="color" /></div>
+          </div>
+          <div class="kvRow">
+            <div class="kvLabel">插队用户字体颜色（priority_color）</div>
+            <div class="kvValue"><input id="cfgPriorityColor" type="color" /></div>
           </div>
           <div class="kvRow">
             <div class="kvLabel">Overlay 显示标记（overlay_show_mark）</div>
@@ -355,16 +372,31 @@
 
       const body = $("queueBody");
       body.innerHTML = "";
+      document.documentElement.style.setProperty("--marked-color", s.config?.ui?.marked_color || $("cfgMarkedColor").value || "#ff5a5a");
+      document.documentElement.style.setProperty("--priority-color", s.config?.ui?.priority_color || $("cfgPriorityColor").value || "#ff0000");
       (s.queue.items ?? []).forEach((it, idx) => {
         const tr = document.createElement("tr");
         const tdIdx = document.createElement("td");
         tdIdx.textContent = String(idx);
 
         const tdName = document.createElement("td");
-        tdName.textContent = it.uname ?? it.user_key ?? "-";
-        // marked font color is configurable
-        document.documentElement.style.setProperty("--marked-color", $("cfgMarkedColor").value || "#ff5a5a");
-        if (it.marked) tdName.classList.add("markedUser");
+        const name = document.createElement("span");
+        name.textContent = it.uname ?? it.user_key ?? "-";
+        if (it.priority) name.classList.add("priorityUser");
+        if (it.marked) name.classList.add("markedUser");
+        tdName.appendChild(name);
+        if (it.priority) {
+          const tag = document.createElement("span");
+          tag.className = "tag tagPriority";
+          tag.textContent = "插队";
+          tdName.appendChild(tag);
+        }
+        if (it.marked) {
+          const tag = document.createElement("span");
+          tag.className = "tag tagMarked";
+          tag.textContent = "标记";
+          tdName.appendChild(tag);
+        }
 
         const tdOps = document.createElement("td");
         const btnRemove = document.createElement("button");
@@ -420,10 +452,13 @@
       $("cfgEmptyText").value = s.config.ui.empty_text ?? "当前无人排队";
       $("cfgQueueTitle").value = s.config.ui.queue_title ?? "";
       $("cfgMarkedColor").value = s.config.ui.marked_color ?? "#ff5a5a";
+      $("cfgPriorityColor").value = s.config.ui.priority_color ?? "#ff0000";
+      $("cfgPauseColor").value = s.config.ui.pause_color ?? "#ff5a5a";
       $("cfgOverlayShowMark").checked = !!s.config.ui.overlay_show_mark;
       $("cfgKeyword").value = s.config.queue.keyword ?? "";
+      $("cfgPriorityKeyword").value = s.config.queue.priority_keyword ?? "插队";
       $("cfgMatchExact").checked = (s.config.queue.match_mode ?? "exact") === "exact";
-      $("cfgPauseMessage").value = s.config.queue.pause_message ?? "当前暂停排队";
+      $("cfgPauseMessage").value = s.config.queue.pause_message ?? "[暂停排队]";
       $("cfgAutoPauseTime").value = s.config.queue.auto_pause_time ?? "";
       $("cfgPauseCheckInterval").value = s.config.queue.pause_check_interval_seconds ?? 60;
       $("cfgMax").value = s.config.queue.max_queue ?? 10;
@@ -518,8 +553,11 @@
           empty_text: $("cfgEmptyText").value,
           queue_title: $("cfgQueueTitle").value,
           marked_color: $("cfgMarkedColor").value,
+          priority_color: $("cfgPriorityColor").value,
+          pause_color: $("cfgPauseColor").value,
           overlay_show_mark: $("cfgOverlayShowMark").checked,
           keyword: $("cfgKeyword").value,
+          priority_keyword: $("cfgPriorityKeyword").value,
           match_mode: $("cfgMatchExact").checked ? "exact" : "contains",
           pause_message: $("cfgPauseMessage").value,
           auto_pause_time: $("cfgAutoPauseTime").value,
@@ -566,5 +604,3 @@
   </script>
 </body>
 </html>
-
-
